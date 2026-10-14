@@ -1,0 +1,35 @@
+name: PyArrow Linux Environment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/pyarrow-environment.yml'
+      - 'scripts/parquet_cache_inspect.py'
+      - 'research_addon/formal_cache_schema.py'
+      - 'tests/test_formal_cache_schema.py'
+      - 'tests/test_parquet_reader.py'
+permissions:
+  contents: read
+jobs:
+  pyarrow-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-research-ci.txt
+      - name: Install isolated Parquet research dependencies
+        run: python -m pip install --requirement requirements-research-ci.txt
+      - name: Verify installed packages
+        run: |
+          python -c 'import pyarrow,pandas,numpy,optuna; print("PyArrow",pyarrow.__version__,"Pandas",pandas.__version__,"NumPy",numpy.__version__,"Optuna",optuna.__version__)'
+      - name: Verify real parquet reader functionality on synthetic test input
+        run: |
+          python -m unittest -v tests.test_parquet_reader tests.test_formal_cache_schema
+      - name: Run regression suite
+        run: python -m unittest discover -s tests -v
+      - name: Public repository safety checks
+        run: python scripts/preflight.py
