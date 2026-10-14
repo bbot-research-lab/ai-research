@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+import hashlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -33,13 +34,18 @@ def migrate_remote(frame,remote,key,*,operator_approved=False,expected_remote_sh
         live=root/"state"/frame
         if not restore_frame(frame,key,branch,live):
             raise ValueError("remote legacy checkpoint missing")
-        with ExperimentLedger(live/"training_ledger.sqlite3") as ledger:
+        ledger_path=live/"training_ledger.sqlite3"
+        before_digest=hashlib.sha256(ledger_path.read_bytes()).hexdigest()
+        with ExperimentLedger(ledger_path) as ledger:
             before=ledger.count()
         result=migrate_legacy_frame(frame,live,operator_approved=True)
         if not result["migrated"]:
             return result
         # Existing commit remains in Git history and the old encrypted blob
         # remains content-addressed, so migration never destroys the original.
+        after_digest=hashlib.sha256(ledger_path.read_bytes()).hexdigest()
+        if before_digest!=after_digest:
+            raise RuntimeError("migration modified existing experiment ledger bytes")
         commit_and_push(frame,root/"state",branch,key)
         verify=root/"second"
         if not checkout_frame(remote,frame,verify):
@@ -50,6 +56,8 @@ def migrate_remote(frame,remote,key,*,operator_approved=False,expected_remote_sh
         from .continuation_receipt import read_hop
         if read_hop(recovered,frame,require_existing=True)!=0:
             raise RuntimeError("incorrect migrated continuation count")
+        if hashlib.sha256((recovered/"training_ledger.sqlite3").read_bytes()).hexdigest()!=before_digest:
+            raise RuntimeError("remote migration changed experiment ledger bytes")
         with ExperimentLedger(recovered/"training_ledger.sqlite3") as ledger:
             if ledger.count()!=before:
                 raise RuntimeError("migration lost experiment records")
