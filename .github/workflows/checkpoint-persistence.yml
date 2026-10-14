@@ -1,0 +1,50 @@
+name: Checkpoint persistence diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: research-checkpoint-branch-single-writer
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run source tests first
+        run: python -m unittest discover -s tests -v
+      - name: Retrieve durable state branch, validate, update, and push
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Only main branch may run state diagnostic"
+            exit 1
+          fi
+          mkdir -p /tmp/bbot-checkpoint-state
+          cd /tmp/bbot-checkpoint-state
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git remote add origin "$remote"
+          if git ls-remote --exit-code --heads origin research-state >/dev/null; then
+            git fetch --depth=1 origin research-state
+            git checkout -q -B research-state FETCH_HEAD
+          else
+            git checkout -q --orphan research-state
+            git rm -rf --cached . >/dev/null 2>&1 || true
+          fi
+          PYTHONPATH="${GITHUB_WORKSPACE}" python "${GITHUB_WORKSPACE}/scripts/checkpoint_roundtrip.py" --checkpoint checkpoint.json
+          git add checkpoint.json
+          git commit -m "diagnostic: verify durable checkpoint" >/dev/null
+          git push origin HEAD:refs/heads/research-state
+          echo "Durable checkpoint committed to research-state branch (diagnostic only)."
