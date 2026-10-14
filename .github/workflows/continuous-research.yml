@@ -4,73 +4,213 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/15 * * * *'
+  push:
+    paths:
+      - '.github/workflows/continuous-research.yml'
 permissions:
   contents: read
 concurrency:
   group: original-strategy-research-single-writer
   cancel-in-progress: false
 jobs:
+  inputs:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Verify hosted research input connection
+        id: check
+        env:
+          SOURCE_URL: ${{ secrets.BBOT_RESEARCH_SOURCE_URL }}
+          SOURCE_SHA: ${{ vars.BBOT_RESEARCH_SOURCE_SHA256 }}
+          STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, os, re
+          missing = []
+          if not os.environ.get("SOURCE_URL", "").startswith("https://"):
+              missing.append("protected original research bundle")
+          if not re.fullmatch(r"[a-f0-9]{64}", os.environ.get("SOURCE_SHA", "")):
+              missing.append("verified bundle SHA256")
+          try:
+              if len(base64.b64decode(os.environ.get("STATE_KEY", ""), validate=True)) != 32:
+                  raise ValueError()
+          except (ValueError, TypeError):
+              missing.append("encrypted checkpoint key")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("ready=" + ("false" if missing else "true") + "\n")
+          if missing:
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+                  out.write("Research not started. Missing hosted input connection: " + ", ".join(missing) + ".\n")
+              raise SystemExit("HOSTED_RESEARCH_INPUTS_NOT_CONNECTED")
+          PY
   research:
-    # Enable only after an isolated persistent runner passes the original gates.
-    if: vars.BBOT_RESEARCH_ENABLED == 'true'
-    runs-on: [self-hosted, bbot-research]
+    needs: inputs
+    if: needs.inputs.outputs.ready == 'true'
+    # Windows preserves the original controller's msvcrt locking and path semantics.
+    runs-on: windows-latest
     timeout-minutes: 350
+    permissions:
+      contents: write
     env:
-      BBOT_LOCAL_ROOT: ${{ vars.BBOT_RESEARCH_ROOT }}
+      BBOT_LOCAL_ROOT: 'C:\my\bottest'
       B_BOT_V3_SERVER_PUSH_HOLD: '1'
       BBOT_AUTO_RESEARCH_MANAGER_V1: '1'
       PYTHONUTF8: '1'
     steps:
-      # No checkout/clean: original private source, candles and checkpoints persist.
-      # This public workflow never uploads private results or original source.
-      - name: Verify private original workspace and unchanged governance
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-research-ci.txt
+      - name: Install cached research dependencies
+        run: python -m pip install -r requirements-research-ci.txt cryptography
+      - name: Retrieve verified private original workspace
+        env:
+          SOURCE_URL: ${{ secrets.BBOT_RESEARCH_SOURCE_URL }}
+          SOURCE_SHA: ${{ vars.BBOT_RESEARCH_SOURCE_SHA256 }}
+        shell: python
+        run: |
+          import hashlib, io, os, zipfile, urllib.request
+          from pathlib import Path, PurePosixPath
+          request = urllib.request.Request(os.environ["SOURCE_URL"])
+          try:
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  data = response.read()
+          except Exception:
+              raise SystemExit("Private research bundle download failed; URL suppressed")
+          if hashlib.sha256(data).hexdigest() != os.environ["SOURCE_SHA"]:
+              raise SystemExit("Original bundle hash mismatch")
+          root = Path(os.environ["BBOT_LOCAL_ROOT"])
+          root.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(io.BytesIO(data)) as archive:
+              seen = set()
+              for item in archive.infolist():
+                  name = item.filename.replace("\\", "/")
+                  path = PurePosixPath(name)
+                  if path.is_absolute() or ".." in path.parts or ":" in name or name.casefold() in seen:
+                      raise SystemExit("Invalid private research archive path")
+                  seen.add(name.casefold())
+                  if item.is_dir():
+                      continue
+                  target = root.joinpath(*path.parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(archive.read(item))
+      - name: Restore encrypted persistent research branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:BBOT_LOCAL_ROOT)) { throw 'BBOT_RESEARCH_ROOT is required' }
-          $root = [IO.Path]::GetFullPath($env:BBOT_LOCAL_ROOT)
-          if ($root -match '[/\\]bot[/\\]?$' -or $root -eq '/home/ec2-user/bot') { throw 'Production workspace is forbidden' }
-          $python = Join-Path $root '.venv/Scripts/python.exe'
-          if (!(Test-Path $python)) { $python = Join-Path $root '.venv/bin/python' }
-          if (!(Test-Path $python)) { throw 'Persistent research virtualenv is required' }
-          foreach ($relative in @('strategy_lab/research_controller.py','strategy_lab/run_strategy.py','gate_lab_fast.py','ROADMAP_CONSTITUTION_V3.json','strategy_lab/lab_config.json')) {
-            if (!(Test-Path (Join-Path $root $relative))) { throw "Missing original input: $relative" }
-          }
-          $config = Get-Content (Join-Path $root 'strategy_lab/lab_config.json') -Raw | ConvertFrom-Json
-          if ($config.auto_deploy -ne $false -or $config.mode -ne 'EXACT_SIGNAL_CACHE') { throw 'Original non-deploying exact-cache config required' }
-          # Hide runner credentials from original Python and its subprocesses.
+          $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin research-state
+          if ($LASTEXITCODE -ne 0) { throw 'research-state must be initialized with verified encrypted original state before first execution' }
+          git worktree add --detach "$env:RUNNER_TEMP/research-state" FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'State checkout failed' }
+          @'
+          import base64, io, os, zipfile
+          from pathlib import Path, PurePosixPath
+          import json, hashlib
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          state = Path(os.environ["RUNNER_TEMP"]) / "research-state/checkpoint.enc"
+          data = state.read_bytes()
+          key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
+          plain = AESGCM(key).decrypt(data[:12], data[12:], b"BBOT_RESEARCH_STATE_V1")
+          root = Path(os.environ["BBOT_LOCAL_ROOT"])
+          with zipfile.ZipFile(io.BytesIO(plain)) as archive:
+              for item in archive.infolist():
+                  path = PurePosixPath(item.filename)
+                  if path.is_absolute() or ".." in path.parts or ":" in item.filename or not item.filename.startswith("strategy_lab/results/"):
+                      raise SystemExit("Invalid checkpoint path")
+                  if not item.is_dir():
+                      target = root.joinpath(*path.parts)
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      target.write_bytes(archive.read(item))
+          metadata = root / "strategy_lab/results/.hosted_mtimes.json"
+          if not metadata.is_file():
+              raise SystemExit("Initial original timestamp manifest missing; refusing duplicate-input reruns")
+          for name, record in json.loads(metadata.read_text()).items():
+              path = PurePosixPath(name)
+              if path.is_absolute() or ".." in path.parts or ":" in name:
+                  raise SystemExit("Invalid timestamp manifest path")
+              target = root.joinpath(*path.parts)
+              if target.is_file() and target.stat().st_size == record["size"] and hashlib.sha256(target.read_bytes()).hexdigest() == record["sha256"]:
+                  os.utime(target, ns=(record["mtime_ns"], record["mtime_ns"]))
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Checkpoint validation failed; refusing empty-state research' }
+          "BBOT_STATE_RESTORED=1" >> $env:GITHUB_ENV
+      - name: Validate original governance and run original controller
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
           Get-ChildItem Env: | Where-Object { $_.Name -match '^(BINANCE_|AWS_|TELEGRAM_|GH_TOKEN$|GITHUB_TOKEN$|API_KEY$|API_SECRET$)' } | ForEach-Object { Remove-Item "Env:$($_.Name)" }
-          Set-Location $root
+          Set-Location $env:BBOT_LOCAL_ROOT
           @'
           import json, os, sys
           from pathlib import Path
-          root = Path(os.environ["BBOT_LOCAL_ROOT"]).resolve()
+          root = Path(os.environ["BBOT_LOCAL_ROOT"])
           sys.path.insert(0, str(root / "strategy_lab"))
-          import pyarrow, pandas, numpy
-          import v3_governance as governance
-          result = governance.validate_constitution()
-          if not result.get("ok"):
-              raise SystemExit("Original constitution validation failed")
           config = json.loads((root / "strategy_lab/lab_config.json").read_text(encoding="utf-8-sig"))
-          cache = Path(config["data_file"])
-          if not cache.is_absolute():
-              cache = root / cache
-          if not cache.is_file():
-              raise SystemExit("Original exact signal cache missing")
+          if config.get("auto_deploy") is not False or config.get("mode") != "EXACT_SIGNAL_CACHE":
+              raise SystemExit("Original no-deployment research config required")
+          import v3_governance as governance
+          if not governance.validate_constitution().get("ok"):
+              raise SystemExit("Original constitution invalid")
           import research_controller as controller
-          result = controller.managed_dry_run()
-          if not result.get("ok"):
+          if not controller.managed_dry_run().get("ok"):
               raise SystemExit("Original managed research preflight failed")
-          '@ | & $python -
-          if ($LASTEXITCODE -ne 0) { throw 'Original research preflight failed' }
-      - name: Run original persistent research controller
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Original preflight failed' }
+          python strategy_lab/roadmap_manager.py *> $null
+          if ($LASTEXITCODE -ne 0) { throw 'Original controller failed; no research PASS claimed' }
+      - name: Save encrypted original checkpoint for next hosted run
+        if: always() && env.BBOT_STATE_RESTORED == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $root = [IO.Path]::GetFullPath($env:BBOT_LOCAL_ROOT)
-          $python = Join-Path $root '.venv/Scripts/python.exe'
-          if (!(Test-Path $python)) { $python = Join-Path $root '.venv/bin/python' }
-          Get-ChildItem Env: | Where-Object { $_.Name -match '^(BINANCE_|AWS_|TELEGRAM_|GH_TOKEN$|GITHUB_TOKEN$|API_KEY$|API_SECRET$)' } | ForEach-Object { Remove-Item "Env:$($_.Name)" }
-          Set-Location $root
-          & $python (Join-Path $root 'strategy_lab/research_controller.py') --mode loop --enable-research --skip-server-health --sleep-sec 60 --max-cycles 240 *> $null
-          if ($LASTEXITCODE -ne 0) { throw 'Original controller failed; inspect private persistent research state' }
+          @'
+          import base64, io, os, zipfile, json, hashlib
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          root = Path(os.environ["BBOT_LOCAL_ROOT"])
+          tracked = ["strategy_config.json", "strategy_lab/results/v3/research_knowledge.json", "strategy_lab/results/v3/trial_ledger.json", "strategy_lab/results/v3/deployment_state.json", "strategy_lab/results/candidate_registry.json", "data/server_runtime/history.db", "state/position_cache.json", "state/major_symbols.json", "state/v3_blocked_additional_candidates.json"]
+          metadata = {}
+          # Original task signatures include nanosecond mtime: preserve it only for identical bytes.
+          for name in tracked:
+              path = root / name
+              if path.is_file():
+                  stat = path.stat()
+                  metadata[name] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+          meta = root / "strategy_lab/results/.hosted_mtimes.json"
+          meta.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
+          memory = io.BytesIO()
+          with zipfile.ZipFile(memory, "w", zipfile.ZIP_DEFLATED) as archive:
+              for path in sorted((root / "strategy_lab/results").rglob("*")):
+                  if path.is_file():
+                      archive.write(path, path.relative_to(root).as_posix())
+          nonce = os.urandom(12)
+          key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
+          encrypted = nonce + AESGCM(key).encrypt(nonce, memory.getvalue(), b"BBOT_RESEARCH_STATE_V1")
+          if len(encrypted) > 90 * 1024 * 1024:
+              raise SystemExit("Checkpoint exceeds Git blob limit; state not saved")
+          state = Path(os.environ["RUNNER_TEMP"]) / "research-state/checkpoint.enc"
+          state.write_bytes(encrypted)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Encrypted checkpoint save failed' }
+          Set-Location "$env:RUNNER_TEMP/research-state"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add checkpoint.enc
+          git commit -m 'research: persist encrypted original checkpoint'
+          if ($LASTEXITCODE -ne 0) { throw 'Checkpoint commit failed' }
+          $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/research-state
+          if ($LASTEXITCODE -ne 0) { throw 'Checkpoint persistence failed' }
