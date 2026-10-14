@@ -1,0 +1,62 @@
+"""Operator-gated migration of a synthetic encrypted remote frame state.
+
+Preserves the original immutable encrypted blob in Git history, verifies its
+experiment records, then publishes a new authenticated checkpoint. This tool
+must never be run against official V3 state or without stopped frame writers.
+"""
+from __future__ import annotations
+import argparse
+import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from .frame_remote_git import checkout_frame,commit_and_push
+from .git_frame_checkpoint import restore_frame
+from .migrate_legacy_frame import migrate_legacy_frame
+from .experiment_ledger import ExperimentLedger
+from .structure_proposals import FRAMES
+
+def migrate_remote(frame,remote,key,*,operator_approved=False):
+    if operator_approved is not True:
+        raise PermissionError("migration requires explicit operator approval")
+    with TemporaryDirectory() as tmp:
+        root=Path(tmp)
+        branch=root/"remote"
+        if not checkout_frame(remote,frame,branch):
+            raise ValueError("remote legacy state missing; refusing reset")
+        live=root/"state"/frame
+        if not restore_frame(frame,key,branch,live):
+            raise ValueError("remote legacy checkpoint missing")
+        with ExperimentLedger(live/"training_ledger.sqlite3") as ledger:
+            before=ledger.count()
+        result=migrate_legacy_frame(frame,live,operator_approved=True)
+        if not result["migrated"]:
+            return result
+        # Existing commit remains in Git history and the old encrypted blob
+        # remains content-addressed, so migration never destroys the original.
+        commit_and_push(frame,root/"state",branch,key)
+        verify=root/"second"
+        if not checkout_frame(remote,frame,verify):
+            raise RuntimeError("migration publication missing")
+        recovered=root/"confirmed"
+        if not restore_frame(frame,key,verify,recovered):
+            raise RuntimeError("migration restore failed")
+        from .continuation_receipt import read_hop
+        if read_hop(recovered,frame,require_existing=True)!=0:
+            raise RuntimeError("incorrect migrated continuation count")
+        with ExperimentLedger(recovered/"training_ledger.sqlite3") as ledger:
+            if ledger.count()!=before:
+                raise RuntimeError("migration lost experiment records")
+        return result
+
+def main():
+    p=argparse.ArgumentParser()
+    p.add_argument("--frame",required=True,choices=FRAMES)
+    p.add_argument("--remote",required=True)
+    p.add_argument("--approve-synthetic-migration",action="store_true")
+    args=p.parse_args()
+    key=os.environ["BBOT_RESEARCH_STATE_KEY"]
+    print(migrate_remote(args.frame,args.remote,key,
+                         operator_approved=args.approve_synthetic_migration))
+if __name__=="__main__":
+    main()
