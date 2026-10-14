@@ -13,6 +13,7 @@ from .frame_remote_git import checkout_frame
 from .git_frame_checkpoint import restore_frame
 from .experiment_ledger import ExperimentLedger
 from .structure_proposals import FRAMES
+from .continuation_receipt import read_hop
 
 def check_remote_state(frame,remote,key):
     if frame not in FRAMES or not key:
@@ -34,4 +35,5 @@ def check_remote_state(frame,remote,key):
         timestamp=datetime.fromisoformat(completed)
         if timestamp.tzinfo is None or timestamp>datetime.now(timezone.utc):
             raise RuntimeError("invalid remote checkpoint time")
-        return {"verified":True,"timestamp":completed,"records":records}
+        hop=read_hop(destination,frame,require_existing=True)
+        return {"verified":True,"timestamp":completed,"records":records,"hop":hop}
