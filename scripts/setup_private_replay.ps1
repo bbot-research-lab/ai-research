@@ -3,7 +3,8 @@ param(
   [Parameter(Mandatory=$true)][string]$ResearchZip,
   [Parameter(Mandatory=$true)][string]$EngineCacheZip,
   [Parameter(Mandatory=$true)][string]$ModulesZip,
-  [switch]$Execute
+  [switch]$Execute,
+  [string]$OutputDir = ""
 )
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -21,7 +22,10 @@ if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed; formal runner 
 & $python -c "import pyarrow,pandas,numpy,optuna; print('PYARROW_VERSION',pyarrow.__version__)"
 if ($LASTEXITCODE -ne 0) { throw "PyArrow import failed" }
 $argsList = @((Join-Path $root "scripts/staged_official_replay.py")) + $archives
-if ($Execute) { $argsList += "--execute" }
+if ($Execute) {
+    if (-not $OutputDir) { throw "Specify -OutputDir for retained official backtest reports" }
+    $argsList += @("--execute", "--output-dir", $OutputDir)
+}
 & $python @argsList
 if ($LASTEXITCODE -ne 0) { throw "Official replay/staging failed (exit code $LASTEXITCODE)" }
 Write-Host "PASS: isolated runner finished. Execute flag was: $Execute"
