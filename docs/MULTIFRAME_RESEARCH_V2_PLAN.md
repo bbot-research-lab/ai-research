@@ -41,3 +41,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added dedicated snapshot and supervisor tests. They run synthetic data only.
 - Manual six-frame workflow remains a synthetic smoke, not an official research run. All changes are isolated from main and R4.
 - **Still needed before production of a 24h research service:** official V3 candidate adapter, secure remote per-frame durable checkpoint + encryption, on-resume restore, chain scheduling with concurrency guards and quotas, live candle datasets and replay verification, monitor/watchdog, evidence retention strategy and operational tests.
+
+## Fifth increment — encrypted transport foundation
+- Existing 4th-increment GitHub synthetic CI succeeded: run 38547369652.
+- Added `encrypted_frame_transport.py`: AES-256-GCM frame-bound encryption of a SQLite-consistent frame snapshot; rejects wrong frame, incorrect key, corruption, unexpected files, and excessively expanded archives. Unit test covers roundtrip and rejection paths.
+- Real ciphertext upload, authenticated index branch publishing, collision-proof per-frame concurrency, restore-before-run, and automatic 5h30 chained execution are **not wired**. Do not publish plaintext snapshots or use short-lived GitHub artifacts as permanent archives.
+- Production 15-minute original research workflow and R4 remain unchanged. This module is not an official V3 strategy approval or a live scheduler.
