@@ -45,6 +45,15 @@ class FrameRemoteGitTests(unittest.TestCase):
             self.assertTrue(restore_frame("6h", KEY, third, root / "restored-2"))
             with ExperimentLedger(root / "restored-2/training_ledger.sqlite3") as ledger:
                 self.assertEqual(ledger.count(), 2)
+                self.assertEqual(ledger.get("one")["status"], "FAILED")
+                self.assertEqual(ledger.get("two")["status"], "COMPLETED")
+            # Repeat same state: no terminal trial is deleted or overwritten.
+            commit_and_push("6h", frame_root, third, KEY)
+            fourth = root / "checkout-4"
+            self.assertTrue(checkout_frame(remote, "6h", fourth))
+            self.assertTrue(restore_frame("6h", KEY, fourth, root / "restored-3"))
+            with ExperimentLedger(root / "restored-3/training_ledger.sqlite3") as ledger:
+                self.assertEqual(ledger.count(), 2)
 
 if __name__ == "__main__":
     unittest.main()
