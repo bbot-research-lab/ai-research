@@ -112,3 +112,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - `git_frame_checkpoint.py` now treats missing old snapshot members as changed content and creates a new authenticated encrypted checkpoint rather than crashing or pretending the old state matched.
 - Added explicit regression to `test_git_frame_checkpoint.py` covering first-save without progress, repeated identical checkpoint, and new progress-file addition.
 - Recheck full GitHub CI before marking the fix as passed; periodic hosted 10-minute persistence and 24h automatic chaining are not yet verified. Production V3/R4 remain unchanged.
+
+## Seventeenth increment — bounded repeated batches (synthetic only)
+- Sixteenth-increment CI passed on SHA c900ef0d (Research CI run 38549798843).
+- Added `bounded_research_continuation.py` to run a finite, capped number of synthetic research batches per frame, stopping immediately on failure; never dispatches additional GitHub workflows, submits live trades or modifies the official V3 backtester.
+- The feature-branch GitHub persistence smoke now executes two consecutive synthetic batches per frame before encrypted remote state commit. This verifies in-job continuation and fingerprint dedup if the hosted workflow succeeds.
+- **Not implemented**: self-restarting across GitHub Actions jobs, 5h30 real research, ten-minute remote mid-job checkpoints, real market data and official V3 adapter. These gates are intentionally not represented as complete.
