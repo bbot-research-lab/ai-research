@@ -237,6 +237,7 @@ def prewarm_official_history(symbols,root,start,end,timeframes,session=None):
         if not isinstance(symbol,str) or not re.fullmatch("[A-Z0-9]{4,30}",symbol):
             raise ValueError("invalid archive symbol")
         for tf in timeframes:
+            print(f"PUBLIC_CANDLE_PREWARM_START symbol={symbol} frame={tf}",flush=True)
             path=root/"data"/"candles"/symbol/(tf+".parquet")
             item={"symbol":symbol,"tf":tf,"state":"FAILED"}
             try:
