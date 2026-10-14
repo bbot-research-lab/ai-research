@@ -203,3 +203,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `migrate_remote_synthetic.py` to read a preexisting encrypted per-frame Git remote state, preserve all SQLite experiments, require explicit operator approval to add a hop-zero receipt, commit a new content-addressed encrypted checkpoint, and independently refetch/decrypt/validate the new remote state. No remote branch is created when the source checkpoint is absent.
 - Added a local bare-remote end-to-end regression verifying FAILED and COMPLETED records survive and repeated migration does not rewrite an already-migrated checkpoint.
 - **Not yet run against the six GitHub-hosted synthetic state branches.** The current feature-branch workflow has no migration job and the migration helper is explicitly approval-gated. CI validation of this increment is pending. Main research and EC2 R4 unchanged.
+
+## Thirty-third increment — operator-only GitHub synthetic migration workflow
+- 32nd increment CI passed (run 38552663520).
+- Added `.github/workflows/synthetic-receipt-migration.yml`: explicit manual dispatch, selects a single synthetic frame, requires exact approval phrase, serializes per-frame migration alongside the previous smoke group, reads existing encrypted frame branch only, and calls the authenticated remote roundtrip migration code. It does not schedule itself or touch original V3 state.
+- **Not dispatched:** GitHub `workflow_dispatch` on a newly added feature-branch-only workflow may not register until it is present on the default branch. No actual hosted synthetic branch has been migrated yet, and no 24-hour job chaining is enabled.
+- Original main research workflow and production R4 remain untouched.
