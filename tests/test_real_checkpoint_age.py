@@ -39,7 +39,7 @@ class RealTimestampChainTests(unittest.TestCase):
             with patch.object(sys,"argv",argv), patch.dict(os.environ,{
                 "BBOT_SYNTHETIC_CHAIN_ENABLED":"true",
                 "BBOT_RESEARCH_STATE_KEY":key,"GH_TOKEN":"mock-not-used"
-            }), patch("research_addon.continue_hosted_chain.verify_predecessor",return_value=True), patch(
+            }), patch("research_addon.continue_hosted_chain.verify_predecessor",return_value=True), patch("research_addon.continue_hosted_chain.verify_frame_job",return_value=True), patch(
                 "research_addon.continue_hosted_chain.dispatch_next",return_value=None
             ) as mocked:
                 self.assertEqual(main(),0)
