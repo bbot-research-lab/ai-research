@@ -1,0 +1,81 @@
+name: Multi-frame encrypted persistence smoke (manual, synthetic)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  synthetic-frame:
+    strategy:
+      fail-fast: false
+      matrix:
+        frame: [30m, 1h, 6h, 12h, 1d, 1w]
+    concurrency:
+      group: bbot-synthetic-state-${{ matrix.frame }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FRAME: ${{ matrix.frame }}
+      STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install training-only dependency
+        run: python -m pip install optuna cryptography
+      - name: Check protected checkpoint key
+        shell: bash
+        run: |
+          test -n "$STATE_KEY" || { echo 'Encrypted state key absent'; exit 1; }
+      - name: Fetch independent encrypted frame branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="synthetic-frame-state-${FRAME}"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git -c "http.extraheader=AUTHORIZATION: basic $auth" ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            git worktree add --detach "$RUNNER_TEMP/frame-state" "refs/remotes/origin/$branch"
+          else
+            result=$?
+            if [ "$result" -ne 2 ]; then echo 'Remote lookup failed'; exit 1; fi
+            git worktree add --detach "$RUNNER_TEMP/frame-state" HEAD
+            git -C "$RUNNER_TEMP/frame-state" switch --orphan "initial-frame-state"
+            git -C "$RUNNER_TEMP/frame-state" rm -rf --ignore-unmatch . >/dev/null || true
+            find "$RUNNER_TEMP/frame-state" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          fi
+      - name: Restore authenticated frame before training
+        env:
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          python -m research_addon.frame_checkpoint_cli restore --frame "$FRAME" --root "$RUNNER_TEMP/training" --worktree "$RUNNER_TEMP/frame-state"
+      - name: Synthetic training (never runs original V3 engine)
+        run: |
+          python -m research_addon.training_orchestrator --frame "$FRAME" --root "$RUNNER_TEMP/training" --dry-synthetic
+      - name: Encrypt and stage verified frame state
+        env:
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          python -m research_addon.frame_checkpoint_cli stage --frame "$FRAME" --root "$RUNNER_TEMP/training" --worktree "$RUNNER_TEMP/frame-state"
+      - name: Commit encrypted state to isolated branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="synthetic-frame-state-${FRAME}"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git -C "$RUNNER_TEMP/frame-state" add -- frames/ objects/
+          if ! git -C "$RUNNER_TEMP/frame-state" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/frame-state" commit -m "Checkpoint synthetic frame $FRAME"
+          fi
+          git -C "$RUNNER_TEMP/frame-state" -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$branch"
