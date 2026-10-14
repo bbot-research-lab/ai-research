@@ -246,3 +246,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `handoff_claim.py` using exclusive file creation to reject duplicate claims for the same `(run_id, frame, hop)` within one shared filesystem, plus tests for duplicate/corrupt/invalid claims.
 - **This does NOT protect across separate hosted GitHub Actions runners** because their local filesystems are isolated. A durable atomic remote claim or single-writer service and dispatch reconciliation are still required before enabling automatic chaining; claiming dispatch success on this basis would be incorrect.
 - No automatic workflow dispatch, original main research modification, official V3 execution, or production R4 change.
+
+## Forty-fourth increment — Git-server distributed claim
+- Phase 43 Research CI passed (38554955343).
+- Added `distributed_handoff_claim.py` with immutable, randomized create-only Git refs per `(run_id, frame, hop)` and separate-worktree bare-Git test. The first push claims the shared remote ref; a competing independent writer's non-fast-forward push is rejected. Claim refs are separate from encrypted frame research state.
+- This is a claim primitive only; no workflow invokes it yet, no remote GitHub claim has been created and no workflow dispatch is enabled. Dispatch uncertainty after a claim requires manual reconciliation; official V3 and production R4 unchanged.
