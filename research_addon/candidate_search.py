@@ -48,6 +48,7 @@ def genetic_candidates(bounds, objective, *, seed=42, population=16, generations
 def optuna_candidates(bounds, objective, *, seed=42, trials=40):
     if not bounds or trials < 1: raise ValueError("invalid optuna setup")
     import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
     study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=seed))
     def evaluate(trial):
         score = float(objective({k: trial.suggest_float(k, b.low, b.high) for k, b in sorted(bounds.items())}))

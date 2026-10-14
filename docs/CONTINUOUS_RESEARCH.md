@@ -1,54 +1,30 @@
-# GitHub-hosted original strategy research
-## Actual status — 2026-10-14
-GitHub run 38532165730 on main commit 19a3f9011e46ee0ff2c9e178a0a67b63e7fe3121 was actually executed. Input connection checks, dependency installation, authenticated encrypted source download/decryption, and original research state restoration all succeeded. The original governance preflight failed before a research action began. No official strategy result, WF/OOS, blind approval, baseline equality, live application or 24-hour operation is claimed.
+# 파일명: docs/CONTINUOUS_RESEARCH.md
+# GitHub 원본 연구 운영
 
-Exact blocker: strategy_lab/v3_governance.py line 1013 calls server_runtime.get("role"), while the provided R5 final ROADMAP_CONSTITUTION_V3.json stores continuous_operation_pipeline.server_runtime as a string. The failure is AttributeError: 'str' object has no attribute 'get'. The rules were not downgraded, replaced with an old backup or changed to invented scheduler weights. A matching authoritative current local constitution/source contract is still needed.
+## 실행
 
-## Original identity and accumulated history
-1023 uploaded Python files were compared byte-for-byte against BBOT_RESEARCH_UPLOAD.zip: zero changed. The original roadmap_manager.py -> research_controller.py path is preserved. The input pack combines the user's original research ZIP, engine/cache ZIP, strategy module ZIP, provided core archive and provided strategy configuration; it includes the separately supplied ROADMAP_CONSTITUTION_V3_R5_final.json under the canonical name. This assembly is not proof of equality with the user's current complete local filesystem.
-The archived trial ledger has 337 entries, including 334 COMPLETED events. Existing results, rejected work and blind consumption records are retained, not initialized from zero.
+Continuous original strategy research의 기본 입력 ALL은 6개 프레임을 준비한다. 공개 OHLCV는 공식 Binance 아카이브와 체크섬으로 검증하고 재사용한다. 완전한 주봉은 실제 일봉 7개에서 집계한다. 부족한 데이터를 평가 실패로 기록하기 전에 입력 검증 단계에서 차단한다.
 
-Original deduplication was tested with fixtures against the unmodified knowledge module: completed rejected candidate/timeframe/kind cannot be reserved again, including after module reload. A distinct timeframe remains separate. Hosted transport tests verified source identity, authenticated original seed, cumulative chunked-state restore, exact mtime restoration and corruption/empty-state rejection. These are targeted tests, not actual strategy research.
+각 Windows 연구 작업은 원본 roadmap_manager.py와 기존 controller를 330분 동안 실행한다. 실행 종료만으로 전략 합격을 표시하지 않는다. 시간 만료로 중단된 평가는 미완료로 남기고 항상 암호화 체크포인트를 저장한다. 정상 회차와 저장 성공 뒤에는 그 프레임 다음 회차를 요청한다. GitHub 작업 대기·제한·장애로 지연될 수 있으므로 24시간 무중단 실적을 보장하지 않는다.
 
-## Connected input transport
-The user expressly approved publishing ciphertext in the public research repository and placing its decryption key in Actions secrets.
-Release: research-inputs-20261014, asset source.enc, AES-256-GCM, authenticated context BBOT_RESEARCH_SOURCE_V1. SHA256: 375d60eb5aff058f4201191d74260916d833051348208048c1a29b39f1befef1.
-Configured and visibly verified: secrets BBOT_RESEARCH_SOURCE_URL and BBOT_RESEARCH_STATE_KEY; variable BBOT_RESEARCH_SOURCE_SHA256. No plaintext key, original ZIP or private result JSON is committed or publicly uploaded.
+## 원본과 변경
 
-## Hosted execution and persistence
-GitHub supplies windows-latest workers; the user's PC and self-hosted runners are not required. Windows retains original C:\\my\\bottest paths and msvcrt locking. Source is restored privately to that path. Original rules and managed preflight are checked before invoking the unchanged original roadmap_manager.py for one bounded action.
+사용자 제공 규칙과 기존 평가 기준을 유지한다. 기존 72개 기본 레시피 신호가 같은 입력에서 동일함을 확인했다. 추가 조건 후보의 탐색은 원본 하드패스 데이터 중 앞부분 훈련 구간과 원본 simulate를 사용한다. 유전·Optuna 탐색 점수는 합격 판정이 아니다.
 
-The schedule requests work every 15 minutes only when BBOT_RESEARCH_READY=true. That readiness variable is not enabled while the original governance preflight is failing, preventing repeated known-invalid executions. Manual and source-change verification are allowed. GitHub scheduling and 350-minute job limits cannot guarantee continuous uninterrupted execution.
+원본 연구 함수에 프레임 범위, 기본 조건 개발, 단계 우선 진행, 로컬 쉐도우 연결, 작은 완료 식별자 인덱스를 반영했다. 별도 continue/audit/report 실행기는 주 연구 경로에서 사용하지 않는다. 봉인 블라인드 구간은 프레임별로 겹치지 않게 배정하고 원본 블라인드 판정은 그대로 사용한다.
 
-On first run only, absent research-state uses the authenticated original uploaded seed and verifies existing ledger hash/count; failed remote lookup never permits an empty reset. Later runs require a valid authenticated encrypted state manifest and all ciphertext parts. State timestamps are restored only when hash and size match, preserving original signature inputs.
-After an actual research action starts, state under original strategy_lab/results is encrypted with BBOT_RESEARCH_STATE_V1 and split into 30 MiB parts on research-state. Non-forced push and workflow serialization prevent conflicting writers. No checkpoint was published from the failed governance preflight. Remote persistence, long-run retention, interruption recovery and real-cycle dedup remain to be verified in real Actions.
+## 누적 및 재개
 
-## Production boundary
-Authoritative production plan: hans1177/binance-bot/docs/BBOT_RESEARCH_BUILD_PLAN_2026-10-14.md.
-Goal: GitHub researches -> EC2 pulls approved results at 06:00 KST -> existing signed/versioned validation and SHADOW/CANARY/SMALL/NORMAL release procedure. GitHub receives no SSH/AWS/trading credentials and does not push to EC2. The uploaded local strategy_runtime_sync.ps1 is an SSH push routine, not a GitHub result receiver.
-EC2 daily receiver, production feedback import, signed result publication and live promotion remain unimplemented/unverified. R4, existing positions and pass criteria were not changed. The new 30-symbol universe is not a relabeling of the old frozen 35-symbol exact cache.
+원본 입력은 인증된 AES-GCM 암호문 source4.enc로 배포하며 SHA256도 확인한다. 키는 기존 Actions secret BBOT_RESEARCH_STATE_KEY에만 둔다. 결과는 research-state-<TF>에 기존 암호화 저장 방식으로 기록한다. 최초 분리 실행은 누적 research-state를 가져오며 손상된 장부나 지식 파일을 빈 값으로 초기화하지 않는다.
 
-## New authoritative local constitution received — 2026-10-14
-The user supplied ROADMAP_CONSTITUTION_V3(2).json directly in this turn. Its exact SHA256 is a14a9239b6d5df5fb634b43b6cc015c8a96370fac22fc73f7bad1324f96b265b. It is copied unchanged under the canonical filename; original research code is unchanged. The original constitution validator and managed dry-run actually passed locally, with 48 pending trailing items and 2 reentry items. This resolves the prior governance type mismatch.
-The refreshed authenticated ciphertext is source2.enc, SHA256 28678a92837a091ee31fe4f64b947ce2499727fea8eba5a7e8e48b288aa831d4. Its ledger still contains 337 entries.
+측정된 통과와 실패는 완료 식별자·판정·결과 위치를 유지한다. RUN_STRATEGY_FAIL, SAFE_GRAMMAR_RUN_FAIL, RESULT_NOT_FOUND는 평가 결과가 없는 실행 오류다. 기존 오류 원문은 보존하고 정식 완료 중복 인덱스에서 구분한다. 데이터 검증이 성공한 뒤에만 재개한다. 트레일링·재진입의 미평가 쌍만 기존 담당 함수에서 복구하며 실제 측정 실패와 노출된 블라인드는 재개 대상으로 바꾸지 않는다.
 
-## Prevent infrastructure failures from poisoning research history
-The hosted workflow plans candle prerequisites from the original scheduler/state before reserving any trial, obtains authenticated public OHLCV with the existing downloader, and runs the original roadmap only after coverage verification succeeds. The current selected original pending target needs 12-hour OHLCV, which is absent from the uploaded source pack. Data absence must not become RUN_STRATEGY_FAIL and a completed rejected strategy trial.
-A cache keyed by original cache identity, intervals and end date retains verified public candles across hosted jobs. Versioned cache keys preserve additions even after interrupted preparation; research results remain separately encrypted. These data caches are recoverable acquisition copies, not durable research history.
-The existing downloader now accepts Binance's real 30m archive interval with 1800-second integrity validation. Seven candle tests passed locally, including signed-archive Parquet output, no overwrite, corruption/missing-bar rejection and dated-symbol union. This does not prove actual historical dataset completeness or backtest parity.
-Push triggers for continuous research and history collection are restricted to main, preventing input-release tags from launching duplicate collection/research jobs. Scheduled research still requires a verified successful original action before BBOT_RESEARCH_READY is enabled. Other later-stage input plans and real interruption recovery remain subject to validation.
+상세 장부의 기존 100,000행 한도와 실패 조회 목록의 1,000행 한도는 유지한다. 별도의 작은 완료·실패 식별자 인덱스와 기존 암호화 객체는 삭제하지 않는다. 이는 중복 연구를 막기 위한 보존 정책이며 무한한 GitHub 저장 용량을 뜻하지 않는다.
 
-Current data preparation uses the original run_strategy.hard_pass_window_from_env and make_hard_pass_dataset_windows, not today's selection or an invented historic universe. The original fixed-window contract is 2016-01-01 through 2024-08-20, with actual cache availability clipping performed only by the unchanged original runner. Required symbol membership and archive end derive from those same original dataset windows. No training dates, scoring or old-cache identity are modified.
+## 필수 입력과 본섭
 
-## Input correction and storage verification — 2026-10-14
-The previous source URL/hash settings remained unchanged because GitHub required sudo reauthentication. This was observed in the live settings, not inferred from a job exit code. After secure reauthentication, the new source2 URL and SHA were saved and verified. Attempt 2 of run 38536189604 passed original governance on the actual hosted Windows runner and is acquiring authentic candle prerequisites. The redundant whole-history collector run 38536189392 was cancelled; existing results were not deleted.
+봉인 블라인드의 실제 심볼 적격 스냅샷 state/symbol_universe.json이 없는 경우 원본 선정 단계에서 대기한다. 임의 심볼이나 가상 순위로 대신하지 않는다. 로컬 쉐도우도 원본 minimal_shadow_pass가 확인한 경우에만 합격으로 기록한다. 생산 환경 변경·실제 주문은 수행하지 않으며 B_BOT_V3_SERVER_PUSH_HOLD=1, RUNNER_DRY_RUN=1을 유지한다.
 
-Checkpoint storage now reuses unchanged encrypted content files. The existing restore/save steps support authenticated V2 archive migration and an encrypted V3 file index. File names, source, PASS/FAIL records and their reasons stay encrypted. Objects are immutable and split below GitHub's per-file limit; changed files alone add new objects. Prior objects and Git revisions remain recoverable. Object hashes, authenticated encryption, exact plaintext size/hash, allowed paths and total capacity are checked before research. This changes storage, not strategy code or pass criteria. Actual original outcomes are reported as trial counts; process success cannot certify a strategy PASS.
+## 검증 범위
 
-Six local tests executed the actual workflow storage blocks: PASS/FAIL/source round-trip, unchanged-content reuse and retention of older failure objects, legacy migration, object corruption/missing-object rejection, wrong-key rejection, and multipart large-file recovery. Seven original candle integrity tests also passed. Remote V3 persistence and resumed cycles require actual workflow verification.
-
-Long-term retention proposal (not deletion authorization): retain compact experiment identities, strategy versions, parameters, data/rule identities, PASS/FAIL verdicts and reasons; compress large evidence and apply a separately agreed retention period to verbose logs. The unchanged original trial ledger currently retains 100,000 entries and the failed-research convenience list 1,000 entries. Historical encrypted checkpoints preserve older versions, but the live original duplicate guard does not consult records trimmed beyond that ledger limit. Permanent dedupe beyond the limit is therefore not yet guaranteed. Incremental storage reduces repeated copies; it does not create unlimited GitHub storage. No existing research or Git history has been pruned.
-
-## Real-source daily recovery
-Actual input preparation identified a FILUSDT 12-hour monthly-archive discontinuity. A diagnostic authenticated the relevant public monthly and daily archives; daily files for affected dates were available. The existing downloader now replaces at most 31 inconsistent UTC days with checksum-verified complete daily archives of the SAME symbol and interval, then reruns full coverage verification. It does not interpolate, invent empty bars, change symbols, relax strategy criteria or score an incomplete dataset. Missing/bad daily archives still fail closed before trial reservation. Nine candle tests passed locally, including actual recovered Parquet output, absent-bar refusal, wrong-date refusal and corrupt daily-checksum refusal. Real hosted recovery still requires execution.
-A full local checkpoint validation also used the actual 3,360 uploaded result files: 3,303 unique encrypted content objects totalled approximately 75.01 MiB. Full restore retained all 337 original trial entries; saving the unchanged restored results added zero content objects. This is local storage evidence, not proof of remote continuation or strategy approval.
+로컬에서 원본 연결 테스트 11개, 데이터 준비 테스트 11개, 암호화 체크포인트 테스트 6개를 통과했다. 워크플로 Python 문법과 원본 규칙도 확인했다. 합성 테스트는 실제 전략의 최종 합격 증거가 아니다. 배포 뒤 Actions 실행 로그에서 입력 준비와 연구 진행을 별도로 확인해야 한다.

@@ -3,7 +3,7 @@
 No private API, credentials, synthetic fill, production trading or deployment.
 Requires pandas, pyarrow and requests. Fails if any requested day is unavailable.
 """
-import argparse, hashlib, io, json, math, re, zipfile
+import argparse, hashlib, io, json, math, re, zipfile, tempfile, os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import pandas as pd
@@ -143,6 +143,29 @@ def download(symbol,tf,start,end,root,session=None):
     start,end=start.astimezone(timezone.utc),end.astimezone(timezone.utc)
     if end>datetime.now(timezone.utc): raise ValueError("cannot fetch incomplete future data")
     s=session or requests.Session()
+    if tf=="1w":
+        # 주봉은 검증된 실제 일봉 7개를 월요일 UTC 기준으로 합산한다.
+        # 구성 일봉 하나라도 없으면 주봉을 생성하지 않는다.
+        first,last=expected_bounds(tf,start,end)
+        if first>last:
+            raise ValueError("empty complete weekly window")
+        a=datetime.fromtimestamp(first,timezone.utc)
+        b=datetime.fromtimestamp(last+STEP[tf],timezone.utc)
+        if b>datetime.now(timezone.utc):
+            raise ValueError("weekly constituent data not closed yet")
+        with tempfile.TemporaryDirectory() as tmp:
+            daily_info=download(symbol,"1d",a,b,tmp,session=s)
+            daily=pd.read_parquet(daily_info["path"])
+        daily["week"]=(daily.open_time-345600)//604800*604800+345600
+        if not (daily.groupby("week").size()==7).all():
+            raise ValueError("incomplete weekly constituent days")
+        weekly=daily.groupby("week",sort=True).agg(open=("open","first"),high=("high","max"),low=("low","min"),close=("close","last"),volume=("volume","sum")).reset_index().rename(columns={"week":"open_time"})
+        verify_frame(weekly,tf,start,end)
+        path=Path(root)/"data/candles"/symbol/"1w.parquet"
+        if path.exists():raise FileExistsError(str(path))
+        path.parent.mkdir(parents=True,exist_ok=True)
+        weekly.to_parquet(path,index=False)
+        return {"path":str(path),"rows":len(weekly),"first_ts":int(weekly.open_time.iloc[0]),"last_ts":int(weekly.open_time.iloc[-1]),"source":"CHECKSUM_VERIFIED_UTC_DAILY_AGGREGATION"}
     current=start.replace(day=1)
     frames=[];missing=[]
     while current < end:
@@ -237,13 +260,26 @@ def prewarm_official_history(symbols,root,start,end,timeframes,session=None):
         if not isinstance(symbol,str) or not re.fullmatch("[A-Z0-9]{4,30}",symbol):
             raise ValueError("invalid archive symbol")
         for tf in timeframes:
-            print(f"PUBLIC_CANDLE_PREWARM_START symbol={symbol} frame={tf}",flush=True)
             path=root/"data"/"candles"/symbol/(tf+".parquet")
             item={"symbol":symbol,"tf":tf,"state":"FAILED"}
             try:
                 if path.exists():
                     cached=pd.read_parquet(path)
-                    verify_frame(cached,tf,datetime.fromtimestamp(int(cached.open_time.iloc[0]),timezone.utc),end)
+                    first_cached=datetime.fromtimestamp(int(cached.open_time.iloc[0]),timezone.utc)
+                    _,required_last=expected_bounds(tf,first_cached,end)
+                    if int(cached.open_time.iloc[-1])<required_last:
+                        if tf not in STEP:raise ValueError("cached monthly range extension requires exact month boundary")
+                        tail_start=datetime.fromtimestamp(int(cached.open_time.iloc[-1])+STEP[tf],timezone.utc)
+                        with tempfile.TemporaryDirectory() as tmp:
+                            tail_info=download(symbol,tf,tail_start,end,tmp,session=source)
+                            tail=pd.read_parquet(tail_info["path"])
+                        extended=pd.concat([cached,tail],ignore_index=True)
+                        verify_frame(extended,tf,first_cached,end)
+                        temp=path.with_suffix(".tmp.parquet")
+                        extended.to_parquet(temp,index=False)
+                        os.replace(temp,path)
+                        cached=extended
+                    verify_frame(cached,tf,first_cached,end,allow_extra=True)
                     info={"path":str(path),"rows":len(cached),
                           "first_ts":int(cached.open_time.iloc[0]),"last_ts":int(cached.open_time.iloc[-1])}
                     item["state"]="REUSED"
@@ -251,12 +287,14 @@ def prewarm_official_history(symbols,root,start,end,timeframes,session=None):
                     first_month=start.replace(day=1,hour=0,minute=0,second=0,microsecond=0)
                     initial=None
                     while first_month<end:
-                        frame=fetch(source,url(symbol,INTERVAL[tf],first_month))
+                        frame=fetch(source,url(symbol,INTERVAL["1d" if tf=="1w" else tf],first_month))
                         if frame is not None and not frame.empty:
                             stamp=int(frame.open_time.iloc[0])
                             if stamp>10**14:stamp//=1000
                             if stamp>10**11:stamp//=1000
                             initial=datetime.fromtimestamp(max(int(start.timestamp()),stamp),tz=timezone.utc)
+                            if tf=="1w":
+                                initial=datetime.fromtimestamp(expected_bounds("1w",initial,end)[0],timezone.utc)
                             break
                         first_month=(first_month.replace(day=28)+timedelta(days=4)).replace(day=1)
                     if initial is None:

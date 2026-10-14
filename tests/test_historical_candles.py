@@ -139,5 +139,42 @@ class DownloadTests(unittest.TestCase):
         first,last=expected_bounds("1w",a,b)
         self.assertEqual(first,int(a.timestamp()))
         self.assertEqual(last,int(datetime(2021,1,11,tzinfo=timezone.utc).timestamp()))
+
+    def test_weekly_bars_require_all_verified_daily_constituents(self):
+        import pandas as pd
+        first=1609718400000
+        rows=[f"{first+i*86400000},1,2,0.5,1.5,10" for i in range(14)]
+        def archive(lines):
+            buff=io.BytesIO()
+            with zipfile.ZipFile(buff,'w') as z:z.writestr('fixture.csv','\n'.join(lines))
+            return buff.getvalue()
+        start=datetime(2021,1,4,tzinfo=timezone.utc);end=datetime(2021,1,18,tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            info=download('AAVEUSDT','1w',start,end,tmp,session=FakeSession(archive(rows)))
+            weekly=pd.read_parquet(info['path'])
+            self.assertEqual(weekly.open_time.tolist(),[first//1000,first//1000+604800])
+            self.assertEqual(weekly.volume.tolist(),[70,70])
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                download('AAVEUSDT','1w',start,end,tmp,session=FakeSession(archive(rows[:3]+rows[4:])))
+            self.assertFalse((Path(tmp)/'data/candles/AAVEUSDT/1w.parquet').exists())
+
+    def test_cached_history_extends_without_changing_existing_bars(self):
+        import pandas as pd
+        from scripts.download_historical_candles import prewarm_official_history
+        first=1609459200000
+        buff=io.BytesIO()
+        with zipfile.ZipFile(buff,'w') as z:
+            z.writestr('fixture.csv','\n'.join(f'{first+i*3600000},1,2,0.5,1.5,10' for i in range(3)))
+        session=FakeSession(buff.getvalue())
+        start=datetime(2021,1,1,tzinfo=timezone.utc);mid=datetime(2021,1,1,2,tzinfo=timezone.utc);end=datetime(2021,1,1,3,tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            info=download('AAVEUSDT','1h',start,mid,tmp,session=session)
+            original=pd.read_parquet(info['path'])
+            records=prewarm_official_history(['AAVEUSDT'],tmp,start,end,['1h'],session=session)
+            self.assertNotEqual(records[0]['state'],'FAILED')
+            extended=pd.read_parquet(info['path'])
+            pd.testing.assert_frame_equal(original,extended.iloc[:2].reset_index(drop=True))
+            self.assertEqual(len(extended),3)
 if __name__=="__main__":unittest.main()
 
