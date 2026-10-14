@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/pyarrow-environment.yml'
+      - 'requirements-research-ci.txt'
       - 'scripts/parquet_cache_inspect.py'
       - 'research_addon/formal_cache_schema.py'
       - 'tests/test_formal_cache_schema.py'
