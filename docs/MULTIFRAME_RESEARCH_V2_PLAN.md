@@ -100,3 +100,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Enhanced `git_frame_checkpoint.stage_frame` to decrypt and verify the old object before reusing it for byte-identical snapshots, reducing unnecessary content-addressed encrypted objects. Added reuse test.
 - Expanded an opt-in feature-branch-only synthetic persistence workflow to six independent timeframes for live GitHub Actions smoke testing; this changes no original continuous research schedule or R4 code.
 - Still pending: six-frame workflow result, remote ten-minute mid-job checkpoint, worker self-chaining, original V3 official research integration, independent immutable ledger over long-term storage rollover, production release signing and AWS pull.
+
+## Fifteenth increment — checkpoint callback to authenticated Git remote
+- Fixed checkpoint-reuse test and verified all three GitHub test workflows succeeded on SHA b5b20474 (Research CI run 38549413616).
+- Added `hosted_frame_runner.py` to supervise an explicit child job and, at each local timed checkpoint or final cleanup, authenticate the staged encrypted snapshot, commit/push to the isolated synthetic frame branch, refetch it and compare decrypted byte hashes. Errors fail closed. The worktree/credentials must already be initialized by a trusted workflow.
+- Added `tests/test_hosted_frame_runner.py`, using a local bare Git remote with seeded failed trial and verifying that new synthetic training and previous failed evidence both survive encrypted publication.
+- IMPORTANT: ten-minute checkpoint execution on GitHub hosted long-running jobs remains unverified; the current synthetic job is short and ends before ten minutes. No actual V3 strategy engine is connected. Current original main research workflow and EC2 R4 remain unchanged.
