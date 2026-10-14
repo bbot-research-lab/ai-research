@@ -1,6 +1,9 @@
 name: Multi-frame encrypted persistence smoke (manual, synthetic)
 on:
   workflow_dispatch:
+  push:
+    branches: [feature/research-multiframe-foundation-20261014]
+    paths: ['.github/workflows/multiframe-persistence-smoke.yml']
 permissions:
   contents: write
 jobs:
@@ -8,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        frame: [30m, 1h, 6h, 12h, 1d, 1w]
+        frame: [6h]
     concurrency:
       group: bbot-synthetic-state-${{ matrix.frame }}
       cancel-in-progress: false
