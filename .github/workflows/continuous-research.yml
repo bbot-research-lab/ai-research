@@ -332,7 +332,11 @@ jobs:
           # One original controller invocation performs one bounded V3 task.
           # Re-invoke it to let the ORIGINAL scheduler advance qualified
           # candidates through its own gates; never hand-select stage names.
-          $cycles = 4
+          # Continue original scheduled research; the original V3 engine owns all
+          # stage transitions and official grading. This is not a PASS loop.
+          $cycles = 24
+          $ledgerPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/v3/trial_ledger.json'
+          $initialCount = if (Test-Path $ledgerPath) { @((Get-Content -Raw -Encoding UTF8 $ledgerPath | ConvertFrom-Json).entries).Count } else { 0 }
           for ($cycle = 1; $cycle -le $cycles; $cycle++) {
             Write-Output "ORIGINAL_V3_CYCLE_START=$cycle/$cycles"
             python strategy_lab/roadmap_manager.py *> $null
@@ -348,7 +352,10 @@ jobs:
             $inner = $controller.result
             $innerStatus = if ($null -ne $inner) { [string]$inner.status } else { '' }
             $innerAction = if ($null -ne $inner) { [string]$inner.action } else { '' }
-            Write-Output "ORIGINAL_V3_CYCLE_FINISHED=$cycle; ACTION=$action; STAGE_STATUS=$innerStatus; STAGE_ACTION=$innerAction"
+            $trialCount = if (Test-Path $ledgerPath) { @((Get-Content -Raw -Encoding UTF8 $ledgerPath | ConvertFrom-Json).entries).Count } else { 0 }
+            Write-Output "ORIGINAL_V3_CYCLE_FINISHED=$cycle; ACTION=$action; STAGE_STATUS=$innerStatus; STAGE_ACTION=$innerAction; TRIAL_RECORDS=$trialCount"
+            if ($trialCount -lt $initialCount) { throw "Original trial ledger shrank; stop before any further research" }
+            $initialCount = $trialCount
             if ($action -in @('GOVERNANCE_BLOCK','SKIP') -or $innerAction -eq 'GOVERNANCE_BLOCK') { throw "Original V3 governance or lock block: $action / $innerAction" }
             if ($action -eq 'NO_NEW_BOUNDED_INPUT' -or $innerAction -eq 'NO_NEW_BOUNDED_INPUT' -or $innerStatus -in @('NO_NEW_RESEARCH_BACKLOG','NO_WORK_FOR_SELECTED_BUCKET')) {
               Write-Output 'ORIGINAL_V3_NO_MORE_BOUNDED_WORK'
