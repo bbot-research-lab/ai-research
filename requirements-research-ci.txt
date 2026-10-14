@@ -1,0 +1,5 @@
+# Isolated GitHub Actions research validation only; not the live AWS R4 bot.
+pyarrow>=17,<22
+pandas>=2.2,<3
+numpy>=1.26,<3
+optuna>=4,<5
