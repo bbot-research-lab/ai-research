@@ -7,7 +7,6 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-import signal
 import subprocess
 import sys
 import time
@@ -16,7 +15,8 @@ from .frame_snapshot import snapshot
 from .structure_proposals import FRAMES
 
 def supervise(command, *, frame, root, snapshots, max_seconds=19800,
-              checkpoint_seconds=600, grace_seconds=1200, poll_seconds=1):
+              checkpoint_seconds=600, grace_seconds=1200, poll_seconds=1,
+              checkpoint_callback=None):
     if frame not in FRAMES or not command:
         raise ValueError("invalid job")
     if max_seconds <= grace_seconds or checkpoint_seconds <= 0 or poll_seconds <= 0:
@@ -29,12 +29,16 @@ def supervise(command, *, frame, root, snapshots, max_seconds=19800,
     next_save = started + checkpoint_seconds
     deadline = started + max_seconds - grace_seconds
     timed_out = False
+    def save_checkpoint():
+        if (work / 'training_ledger.sqlite3').exists():
+            snapshot(work, store)
+            if checkpoint_callback is not None:
+                checkpoint_callback(frame, store)
     try:
         while process.poll() is None:
             now = time.monotonic()
             if now >= next_save:
-                if (work / "training_ledger.sqlite3").exists():
-                    snapshot(work, store)
+                save_checkpoint()
                 next_save = now + checkpoint_seconds
             if now >= deadline:
                 timed_out = True
@@ -54,8 +58,7 @@ def supervise(command, *, frame, root, snapshots, max_seconds=19800,
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
-        if (work / "training_ledger.sqlite3").exists():
-            snapshot(work, store)
+        save_checkpoint()
     if timed_out:
         # Safe bounded end: caller may request next iteration after remote upload.
         return 0
