@@ -191,3 +191,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added atomic, bounded `continuation_hop.json` and integrated it into the SQLite snapshot manifest and AES-GCM frame archive. The remote state verifier now refuses to authorize a restart when the encrypted hop receipt is absent, mismatched or invalid, instead of guessing hop zero.
 - Added roundtrip and counter monotonicity regression tests; missing counters cause fail-closed behavior. Existing synthetic state branches from prior stages lack this receipt and require controlled migration before the watcher could ever be enabled.
 - There is still no enabled workflow listener, actual automatic chaining, official V3 backtester or 24-hour deployment. Main research and R4 remain untouched.
+
+## Thirty-first increment — explicit legacy synthetic state migration
+- Thirtieth-increment CI succeeded (Research CI run 38552349074).
+- Added `migrate_legacy_frame.py` and tests: requires explicit operator approval and an existing SQLite research ledger, retains both FAILED and COMPLETED experiments, adds a bounded hop-zero receipt, and refuses to quietly reset an absent ledger. A previously migrated state is left unchanged.
+- Only local, opt-in legacy migration code is implemented; **not** yet run against remote GitHub frame-state branches. To persist the migrated receipt, a controlled authenticated checkpoint publication must happen in a later step, with frame writers stopped and separate backups preserved.
+- No automatic dispatch, production V3 workflow modification or EC2 R4 changes.
