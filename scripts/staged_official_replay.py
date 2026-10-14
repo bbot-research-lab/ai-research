@@ -64,14 +64,14 @@ def main():
     if args.timeout<1 or args.timeout>21600: p.error("timeout must be 1..21600")
     with tempfile.TemporaryDirectory(prefix="bbot_original_isolated_") as temp:
         root=stage(args.original_research_zip,args.engine_cache_zip,args.material_modules_zip,temp)
+        print("Original input hashes verified; all official material modules staged.")
+        if not args.execute:
+            print("DRY RUN PASS: source files staged and pinned hashes match; no backtest executed.")
+            return 0
         import importlib.util
         if importlib.util.find_spec("pyarrow") is None and importlib.util.find_spec("fastparquet") is None:
             print("BLOCKED: install pyarrow or fastparquet in the selected Python environment.")
             return 2
-        print("Original input hashes verified; all official material modules staged.")
-        if not args.execute:
-            print("DRY RUN ONLY: add --execute to run original official backtester.")
-            return 0
         env=dict(os.environ)
         env["BBOT_LOCAL_ROOT"]=str(root)
         # Avoid accidental reuse of live R4/production environment settings.
