@@ -106,3 +106,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `hosted_frame_runner.py` to supervise an explicit child job and, at each local timed checkpoint or final cleanup, authenticate the staged encrypted snapshot, commit/push to the isolated synthetic frame branch, refetch it and compare decrypted byte hashes. Errors fail closed. The worktree/credentials must already be initialized by a trusted workflow.
 - Added `tests/test_hosted_frame_runner.py`, using a local bare Git remote with seeded failed trial and verifying that new synthetic training and previous failed evidence both survive encrypted publication.
 - IMPORTANT: ten-minute checkpoint execution on GitHub hosted long-running jobs remains unverified; the current synthetic job is short and ends before ten minutes. No actual V3 strategy engine is connected. Current original main research workflow and EC2 R4 remain unchanged.
+
+## Sixteenth increment — checkpoint evolution regression
+- Fifteenth-increment GitHub CI failed in `test_hosted_frame_runner`: encrypted checkpoint reuse assumed an earlier snapshot contained `training_progress.json` when the new snapshot had added that file, raising FileNotFoundError. This was a real integration regression, not a strategy rejection.
+- `git_frame_checkpoint.py` now treats missing old snapshot members as changed content and creates a new authenticated encrypted checkpoint rather than crashing or pretending the old state matched.
+- Added explicit regression to `test_git_frame_checkpoint.py` covering first-save without progress, repeated identical checkpoint, and new progress-file addition.
+- Recheck full GitHub CI before marking the fix as passed; periodic hosted 10-minute persistence and 24h automatic chaining are not yet verified. Production V3/R4 remain unchanged.
