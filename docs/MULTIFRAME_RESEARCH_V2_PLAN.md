@@ -93,3 +93,10 @@ Only merge after test review. No branch here alters the currently running `conti
 - After an encrypted Git push, `frame_remote_git.py` now refetches the state from the remote branch, decrypts it, and compares SHA-256 and byte lengths of every persisted file against the source SQLite-consistent snapshot; valid but stale ciphertext is no longer treated as evidence of successful persistence.
 - The remote Git regression test now covers a third unchanged-state publish/restore and validates both failed and successful experiment records remain intact. These tests use a local bare Git remote, not live GitHub.
 - Next mandatory gate: manually dispatch and re-run the GitHub-hosted synthetic encrypted persistence workflow from an eligible registered workflow branch, without promoting to production. Existing V3 scheduled workflow and R4 remain unchanged.
+
+## Fourteenth increment — real GitHub smoke evidence
+- Actual first hosted encrypted 6h frame-state run 38549073036: SUCCESS; state persisted to independent synthetic frame branch.
+- Actual second GitHub run 38549138070: SUCCESS for 1h and 6h concurrently. 6h log explicitly emitted RESTORED and training batch reported 31 previously recorded candidates, 0 new candidates and 0 reevaluated candidates. These are synthetic training candidates only, not official V3 trials or approved strategies.
+- Enhanced `git_frame_checkpoint.stage_frame` to decrypt and verify the old object before reusing it for byte-identical snapshots, reducing unnecessary content-addressed encrypted objects. Added reuse test.
+- Expanded an opt-in feature-branch-only synthetic persistence workflow to six independent timeframes for live GitHub Actions smoke testing; this changes no original continuous research schedule or R4 code.
+- Still pending: six-frame workflow result, remote ten-minute mid-job checkpoint, worker self-chaining, original V3 official research integration, independent immutable ledger over long-term storage rollover, production release signing and AWS pull.
