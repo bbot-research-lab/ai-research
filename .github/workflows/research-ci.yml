@@ -22,7 +22,13 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install public test dependencies
-        run: python -m pip install --disable-pip-version-check 'pyarrow>=17,<22' 'optuna>=4,<5'
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check 'pyarrow>=17,<22' 'optuna>=4,<5' 'pandas>=2,<3' 'numpy>=1.26,<3'
+      - name: Verify Parquet engine available
+        run: |
+          python -c 'import pyarrow,pandas,numpy,optuna; print("pyarrow",pyarrow.__version__,"pandas",pandas.__version__,"numpy",numpy.__version__,"optuna",optuna.__version__)'
+          python -c 'import pandas as pd, tempfile, os; f=tempfile.mktemp(suffix=".parquet"); pd.DataFrame({"open_time":[1,2],"close":[3.,4.]}).to_parquet(f); assert len(pd.read_parquet(f)) == 2; os.unlink(f); print("PARQUET_ROUNDTRIP_PASS")'
       - name: Run all research-only unit tests
         run: python -m unittest discover -s tests -v
       - name: Security filename preflight
