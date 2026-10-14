@@ -1,0 +1,17 @@
+name: Safe repository preflight
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/preflight.py'
+      - '.github/workflows/preflight.yml'
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check forbidden filename patterns
+        run: python3 scripts/preflight.py
