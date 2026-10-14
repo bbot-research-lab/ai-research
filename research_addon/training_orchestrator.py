@@ -53,10 +53,16 @@ def training_batch(*, frame, root, objective, data_version, rules_version,
     batch = propose_structures(frame, seed=seed, count=structures)
     inserted = 0
     checked = 0
+    finished = marker["cursor"] if marker else None
+    passed_finished = finished is None
     with ExperimentLedger(base / "training_ledger.sqlite3") as ledger:
         for index, structure in enumerate(batch):
             for method in ("ga", "optuna"):
                 job_key = f"{run_key}:{index}:{method}"
+                if not passed_finished:
+                    if job_key == finished:
+                        passed_finished = True
+                    continue
                 def evaluate(params):
                     return float(objective(structure.as_dict(), params))
                 try:
@@ -86,8 +92,6 @@ def training_batch(*, frame, root, objective, data_version, rules_version,
                 except Exception as exc:
                     # Infrastructure failure must not be called a failed strategy.
                     # Preserve existing terminal results, stop and retry later.
-                    save_progress(progress_path, frame=frame, cursor=job_key,
-                                  completed=ledger.count())
                     raise RuntimeError("training search interrupted; safe retry") from exc
                 save_progress(progress_path, frame=frame, cursor=job_key,
                               completed=ledger.count())
