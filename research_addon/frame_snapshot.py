@@ -11,7 +11,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 
-FILES = ("training_ledger.sqlite3", "training_progress.json")
+FILES = ("training_ledger.sqlite3", "training_progress.json", "continuation_hop.json")
 
 def snapshot(frame_dir, destination):
     frame_dir, destination = Path(frame_dir), Path(destination)
@@ -27,8 +27,9 @@ def snapshot(frame_dir, destination):
         finally:
             target.close()
             source.close()
-        if (frame_dir / FILES[1]).is_file():
-            (stage / FILES[1]).write_bytes((frame_dir / FILES[1]).read_bytes())
+        for filename in FILES[1:]:
+            if (frame_dir / filename).is_file():
+                (stage / filename).write_bytes((frame_dir / filename).read_bytes())
         entries = {}
         for path in stage.iterdir():
             data = path.read_bytes()
