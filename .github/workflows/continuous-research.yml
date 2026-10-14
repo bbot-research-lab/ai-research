@@ -14,6 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   inputs:
+    if: github.event_name != 'schedule' || vars.BBOT_RESEARCH_READY == 'true'
     runs-on: ubuntu-latest
     outputs:
       ready: ${{ steps.check.outputs.ready }}
@@ -73,9 +74,11 @@ jobs:
         env:
           SOURCE_URL: ${{ secrets.BBOT_RESEARCH_SOURCE_URL }}
           SOURCE_SHA: ${{ vars.BBOT_RESEARCH_SOURCE_SHA256 }}
+          STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
         shell: python
         run: |
-          import hashlib, io, os, zipfile, urllib.request
+          import base64, hashlib, io, os, zipfile, urllib.request
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
           from pathlib import Path, PurePosixPath
           request = urllib.request.Request(os.environ["SOURCE_URL"])
           try:
@@ -85,6 +88,11 @@ jobs:
               raise SystemExit("Private research bundle download failed; URL suppressed")
           if hashlib.sha256(data).hexdigest() != os.environ["SOURCE_SHA"]:
               raise SystemExit("Original bundle hash mismatch")
+          try:
+              key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
+              data = AESGCM(key).decrypt(data[:12], data[12:], b"BBOT_RESEARCH_SOURCE_V1")
+          except Exception:
+              raise SystemExit("Original encrypted bundle authentication failed")
           root = Path(os.environ["BBOT_LOCAL_ROOT"])
           root.mkdir(parents=True, exist_ok=True)
           with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -108,29 +116,51 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
-          git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin research-state
-          if ($LASTEXITCODE -ne 0) { throw 'research-state must be initialized with verified encrypted original state before first execution' }
-          git worktree add --detach "$env:RUNNER_TEMP/research-state" FETCH_HEAD
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" ls-remote --exit-code --heads origin research-state > $null
+          $stateExists = $LASTEXITCODE -eq 0
+          if (!$stateExists -and $LASTEXITCODE -ne 2) { throw 'State lookup failed; refusing baseline reset' }
+          if ($stateExists) {
+            git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin research-state
+            if ($LASTEXITCODE -ne 0) { throw 'State fetch failed' }
+            git worktree add --detach "$env:RUNNER_TEMP/research-state" FETCH_HEAD
+          } else {
+            git worktree add --detach "$env:RUNNER_TEMP/research-state" HEAD
+            if ($LASTEXITCODE -ne 0) { throw 'Initial state worktree failed' }
+            git -C "$env:RUNNER_TEMP/research-state" switch --orphan hosted-research-state
+          }
           if ($LASTEXITCODE -ne 0) { throw 'State checkout failed' }
+          $env:BBOT_INITIAL_SEED = if ($stateExists) { '0' } else { '1' }
           @'
           import base64, io, os, zipfile
           from pathlib import Path, PurePosixPath
           import json, hashlib
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-          state = Path(os.environ["RUNNER_TEMP"]) / "research-state/checkpoint.enc"
-          data = state.read_bytes()
-          key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
-          plain = AESGCM(key).decrypt(data[:12], data[12:], b"BBOT_RESEARCH_STATE_V1")
           root = Path(os.environ["BBOT_LOCAL_ROOT"])
-          with zipfile.ZipFile(io.BytesIO(plain)) as archive:
-              for item in archive.infolist():
-                  path = PurePosixPath(item.filename)
-                  if path.is_absolute() or ".." in path.parts or ":" in item.filename or not item.filename.startswith("strategy_lab/results/"):
-                      raise SystemExit("Invalid checkpoint path")
-                  if not item.is_dir():
-                      target = root.joinpath(*path.parts)
-                      target.parent.mkdir(parents=True, exist_ok=True)
-                      target.write_bytes(archive.read(item))
+          state = Path(os.environ["RUNNER_TEMP"]) / "research-state"
+          if os.environ.get("BBOT_INITIAL_SEED") == "1":
+              seed = json.loads((root / ".hosted_seed.json").read_text())
+              ledger_file = root / "strategy_lab/results/v3/trial_ledger.json"
+              ledger = json.loads(ledger_file.read_text(encoding="utf-8-sig"))
+              if seed.get("schema") != "BBOT_UPLOADED_RESEARCH_SEED_V1" or seed.get("trial_ledger_sha256") != hashlib.sha256(ledger_file.read_bytes()).hexdigest() or seed.get("trial_count", 0) != len(ledger.get("entries", [])) or not ledger.get("entries"):
+                  raise SystemExit("Uploaded original research state invalid; refusing empty-state research")
+          else:
+              manifest = json.loads((state / "checkpoint.json").read_text())
+              if manifest.get("schema") != "BBOT_ENCRYPTED_CHECKPOINT_V2" or type(manifest.get("parts")) is not int or not 1 <= manifest["parts"] <= 100:
+                  raise SystemExit("Encrypted checkpoint manifest invalid")
+              data = b"".join((state / f"checkpoint.{i:03d}.enc").read_bytes() for i in range(manifest["parts"]))
+              if hashlib.sha256(data).hexdigest() != manifest.get("sha256"):
+                  raise SystemExit("Encrypted checkpoint hash mismatch")
+              key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
+              plain = AESGCM(key).decrypt(data[:12], data[12:], b"BBOT_RESEARCH_STATE_V1")
+              with zipfile.ZipFile(io.BytesIO(plain)) as archive:
+                  for item in archive.infolist():
+                      path = PurePosixPath(item.filename)
+                      if path.is_absolute() or ".." in path.parts or ":" in item.filename or not item.filename.startswith("strategy_lab/results/"):
+                          raise SystemExit("Invalid checkpoint path")
+                      if not item.is_dir():
+                          target = root.joinpath(*path.parts)
+                          target.parent.mkdir(parents=True, exist_ok=True)
+                          target.write_bytes(archive.read(item))
           metadata = root / "strategy_lab/results/.hosted_mtimes.json"
           if not metadata.is_file():
               raise SystemExit("Initial original timestamp manifest missing; refusing duplicate-input reruns")
@@ -166,10 +196,11 @@ jobs:
               raise SystemExit("Original managed research preflight failed")
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Original preflight failed' }
+          "BBOT_RESEARCH_STARTED=1" >> $env:GITHUB_ENV
           python strategy_lab/roadmap_manager.py *> $null
           if ($LASTEXITCODE -ne 0) { throw 'Original controller failed; no research PASS claimed' }
       - name: Save encrypted original checkpoint for next hosted run
-        if: always() && env.BBOT_STATE_RESTORED == '1'
+        if: always() && env.BBOT_RESEARCH_STARTED == '1'
         env:
           GH_TOKEN: ${{ github.token }}
           STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
@@ -199,18 +230,26 @@ jobs:
           nonce = os.urandom(12)
           key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
           encrypted = nonce + AESGCM(key).encrypt(nonce, memory.getvalue(), b"BBOT_RESEARCH_STATE_V1")
-          if len(encrypted) > 90 * 1024 * 1024:
-              raise SystemExit("Checkpoint exceeds Git blob limit; state not saved")
-          state = Path(os.environ["RUNNER_TEMP"]) / "research-state/checkpoint.enc"
-          state.write_bytes(encrypted)
+          state = Path(os.environ["RUNNER_TEMP"]) / "research-state"
+          chunk_size = 30 * 1024 * 1024
+          parts = (len(encrypted) + chunk_size - 1) // chunk_size
+          if parts > 100:
+              raise SystemExit("Checkpoint capacity exceeded; no partial state commit")
+          for i in range(parts):
+              (state / f"checkpoint.{i:03d}.enc").write_bytes(encrypted[i*chunk_size:(i+1)*chunk_size])
+          for obsolete in state.glob("checkpoint.*.enc"):
+              if obsolete.name not in {f"checkpoint.{i:03d}.enc" for i in range(parts)}:
+                  obsolete.unlink()
+          (state / "checkpoint.json").write_text(json.dumps({"schema":"BBOT_ENCRYPTED_CHECKPOINT_V2", "parts":parts, "sha256":hashlib.sha256(encrypted).hexdigest()},sort_keys=True))
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Encrypted checkpoint save failed' }
           Set-Location "$env:RUNNER_TEMP/research-state"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add checkpoint.enc
+          git add --all -- checkpoint.*
           git commit -m 'research: persist encrypted original checkpoint'
           if ($LASTEXITCODE -ne 0) { throw 'Checkpoint commit failed' }
           $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/research-state
           if ($LASTEXITCODE -ne 0) { throw 'Checkpoint persistence failed' }
+
