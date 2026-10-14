@@ -18,7 +18,7 @@ class GitFrameCheckpointTests(unittest.TestCase):
                 db.record(identity="candidate", frame="6h", status="FAILED",
                           spec={"candidate": 1}, outcome={"reason": "synthetic"})
             snapshot(p / "live", p / "snapshot")
-            stage_frame("6h", p / "snapshot", KEY, p / "git")
+            index = stage_frame("6h", p / "snapshot", KEY, p / "git")
             repeated = stage_frame("6h", p / "snapshot", KEY, p / "git")
             self.assertEqual(repeated["object"], index["object"])
             self.assertEqual(len(list((p / "git/objects").glob("*.enc"))), 1)
