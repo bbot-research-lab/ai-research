@@ -146,3 +146,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added remote ciphertext-index existence checks to `continue_hosted_chain.py` after decrypting remote frame state, before optional dispatch.
 - Added `tests/test_continue_chain_safety.py`: a real local bare Git remote with encrypted synthetic ledger is present, but the continuation controller remains disabled without any GitHub token.
 - No workflow invocation of the dispatcher, no GitHub auto-restart activation, no official V3 strategy research activation and no R4 changes.
+
+## Twenty-third increment — genuine remote checkpoint age required
+- Twenty-second-increment Research CI passed: run 38550888953.
+- Fixed continuation authorization so the checkpoint freshness condition uses the remotely fetched Git commit's actual commit timestamp, rather than generating the current time after any successful restore. Previously, an arbitrarily stale but decryptable checkpoint could appear fresh.
+- Added stale-remote-commit regression test (`tests/test_real_checkpoint_age.py`), with no network dispatch expected when it is expired. The check must pass GitHub CI before considering automatic chaining.
+- IMPORTANT: no job-to-job dispatch wired into hosted jobs; 24/7 and original official V3 are still unimplemented; main workflow and live R4 unchanged.
