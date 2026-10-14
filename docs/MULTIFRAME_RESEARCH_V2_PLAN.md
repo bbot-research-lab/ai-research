@@ -135,3 +135,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Nineteenth-increment Research CI run 38550350309 passed.
 - Hosted synthetic workflow run 38550517165 passed all six frame jobs. Its 6h frame used `hosted_frame_runner` to write/read back remote encrypted checkpoints while a child job was still alive, with 2-second test interval and `REMOTE_CHECKPOINT_VERIFIED=6h` logged three times. The run first emitted `RESTORED` and completed two bounded batches.
 - This demonstrates intermediate GitHub persistence under a SHORT synthetic test. It does not establish actual 600-second cadence over a long hosted job, workflow-to-workflow self-dispatch, unlimited 24/7 availability, actual V3 official engine use or AWS deployment. Do not enable scheduled chaining before end-to-end guard tests and GitHub default-branch workflow registration.
+
+## Twenty-first increment — guarded job-to-job handoff controller
+- Twentieth-increment hosted six-frame smoke succeeded (run 38550517165), and associated Research CI passed (run 38550492203).
+- Added `continue_hosted_chain.py`: fail-closed opt-in controller performs fresh Git remote checkout, authenticates frame checkpoint restoration and uses the bounded GitHub workflow-dispatch API bridge. It explicitly prints CHAIN_DISABLED without accessing credentials or network unless `BBOT_SYNTHETIC_CHAIN_ENABLED=true`.
+- Added `tests/test_continue_hosted_chain.py` for default-off behavior.
+- **Not wired into a workflow step**: no GitHub job-to-job auto-dispatch is enabled; GitHub workflow_dispatch must be registered on default branch. No scheduled 24/7 action or official V3 backtesting was started.
