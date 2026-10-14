@@ -63,6 +63,11 @@ jobs:
       BBOT_AUTO_RESEARCH_MANAGER_V1: '1'
       PYTHONUTF8: '1'
     steps:
+      - name: Start hosted 350-minute research cycle clock
+        shell: pwsh
+        run: |
+          $deadline = [DateTime]::Parse($env:BBOT_RESEARCH_DEADLINE_UTC).ToUniversalTime().ToString('o')
+          "BBOT_RESEARCH_DEADLINE_UTC=$deadline" >> $env:GITHUB_ENV
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
