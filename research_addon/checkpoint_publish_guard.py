@@ -1,38 +1,34 @@
-"""Strict checks around snapshot publication (research-only, no credentials).
+"""Fail-closed local verification before publishing encrypted frame objects.
 
-Remote persistence is a separate GitHub Actions responsibility. The result
-must be verified from the restored branch before a job can claim durability.
+Remote Git push and durable round-trip must be checked separately by workflow.
+No plaintext trial data is placed under the remote Git worktree.
 """
 from __future__ import annotations
-import hashlib
+import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from .git_frame_checkpoint import stage_frame, restore_frame
 from .frame_snapshot import verify_snapshot
 from .structure_proposals import FRAMES
 
-
 def prepare_checkpoint(frame, local_snapshot, key, remote_worktree):
     if frame not in FRAMES:
         raise ValueError("unknown frame")
-    verify_snapshot(local_snapshot)
+    source_manifest = verify_snapshot(local_snapshot)
     index = stage_frame(frame, local_snapshot, key, remote_worktree)
-    # Read through the committed-form index and ciphertext rather than
-    # trusting the staging function return value alone.
-    verify_target = Path(remote_worktree) / "_verify_temp"
-    if verify_target.exists():
-        raise ValueError("verification target occupied")
-    try:
-        restored = restore_frame(frame, key, remote_worktree, verify_target)
-        if not restored:
+    with TemporaryDirectory() as directory:
+        if not restore_frame(frame, key, remote_worktree, directory):
             raise ValueError("staged state missing")
-        restored_digest = verify_snapshot(local_snapshot)
+        # Check the staged ciphertext really roundtrips to the same database
+        # and same progress bytes as the source; not merely to valid ciphertext.
         from .experiment_ledger import ExperimentLedger
-        with ExperimentLedger(verify_target / "training_ledger.sqlite3") as ledger:
+        with ExperimentLedger(Path(directory) / "training_ledger.sqlite3") as ledger:
             if ledger.count() < 0:
-                raise ValueError("impossible record count")
-        return index
-    finally:
-        import shutil
-        if verify_target.exists():
-            shutil.rmtree(verify_target)
+                raise ValueError("invalid restored ledger")
+        import hashlib
+        for name, record in source_manifest["files"].items():
+            restored = (Path(directory) / name).read_bytes()
+            if len(restored) != record["size"] or hashlib.sha256(restored).hexdigest() != record["sha256"]:
+                raise ValueError("snapshot roundtrip mismatch")
+    return index
