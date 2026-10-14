@@ -123,3 +123,10 @@ Only merge after test review. No branch here alters the currently running `conti
 - Seventeenth-increment six-frame hosted synthetic 2-batch workflow passed: run 38549998076.
 - Added `restart_gate.py` and `tests/test_restart_gate.py`: a future inter-job chaining controller may only continue if explicitly enabled, the previous GitHub job succeeded, the remote checkpoint was independently verified, the checkpoint timestamp is fresh, and a strict hop cap has not been exceeded.
 - Does NOT currently dispatch another GitHub Actions run. No scheduled or recursive workflow was enabled, so the original V3 research and R4 remain unaffected. Actual 24-hour autonomous research remains unimplemented.
+
+## Nineteenth increment — opt-in authenticated GitHub dispatch handoff
+- Verified eighteenth-increment Research CI passed: run 38550161489.
+- Added `dispatch_next_research.py` to call GitHub's workflow_dispatch API for the explicitly approved feature branch only, **only after** the previously implemented restart gate checks successful job, checkpoint verification, recency, enabled flag and bounded hop count. This does not contain or log secrets.
+- Added bounded `frame` / `hop` workflow_dispatch inputs to the synthetic persistence workflow and synthetic API mock tests.
+- **Not enabled**: the workflow does not invoke this dispatcher itself. GitHub requires a workflow registered on the default branch for workflow_dispatch; this feature-branch-only workflow is not yet registered there. Thus no claim of automatic chaining or 24/7 execution. Push-trigger remains limited to workflow file changes on the feature branch for synthetic smoke.
+- The original 15-min main research runner and EC2 R4 are unchanged.
