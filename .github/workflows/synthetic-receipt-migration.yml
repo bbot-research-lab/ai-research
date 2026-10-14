@@ -7,6 +7,10 @@ on:
         required: true
         type: choice
         options: [30m, 1h, 6h, 12h, 1d, 1w]
+      expected_remote_sha:
+        description: 'Exact 40-character SHA from successful read-only audit'
+        required: true
+        type: string
       approve:
         description: 'Must equal MIGRATE_SYNTHETIC_ONLY'
         required: true
@@ -23,6 +27,7 @@ jobs:
       cancel-in-progress: false
     env:
       FRAME: ${{ inputs.frame }}
+      EXPECTED_REMOTE_SHA: ${{ inputs.expected_remote_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,4 +58,4 @@ jobs:
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
           python -m research_addon.migrate_remote_synthetic \
             --frame "$FRAME" --remote "https://github.com/${GITHUB_REPOSITORY}.git" \
-            --approve-synthetic-migration
+            --approve-synthetic-migration --expected-remote-sha "$EXPECTED_REMOTE_SHA"
