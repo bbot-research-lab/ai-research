@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import subprocess
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from research_addon.experiment_ledger import ExperimentLedger
 from research_addon.frame_remote_git import checkout_frame,commit_and_push
 from research_addon.migrate_remote_synthetic import migrate_remote
 from research_addon.remote_state_checker import check_remote_state
+from research_addon.git_frame_checkpoint import restore_frame
 
 class RemoteMigrationTests(unittest.TestCase):
     def test_legacy_remote_roundtrip_and_idempotency(self):
@@ -24,6 +26,9 @@ class RemoteMigrationTests(unittest.TestCase):
             checkout=p/"checkout"
             checkout_frame(remote,"6h",checkout)
             commit_and_push("6h",state,checkout,key,allow_initial_seed=True)
+            pre=p/"before"
+            self.assertTrue(restore_frame("6h",key,checkout,pre))
+            prior_digest=hashlib.sha256((pre/"training_ledger.sqlite3").read_bytes()).hexdigest()
             original_sha=subprocess.run(["git","-C",str(checkout),"rev-parse","HEAD"],check=True,capture_output=True,text=True).stdout.strip()
             with self.assertRaises(PermissionError):
                 migrate_remote("6h",remote,key,expected_remote_sha=original_sha)
@@ -32,6 +37,11 @@ class RemoteMigrationTests(unittest.TestCase):
             migrated=migrate_remote("6h",remote,key,operator_approved=True,expected_remote_sha=original_sha)
             self.assertTrue(migrated["migrated"])
             self.assertEqual(migrated["retained_records"],2)
+            recovered_checkout=p/"after_checkout"
+            self.assertTrue(checkout_frame(remote,"6h",recovered_checkout))
+            restored=p/"after"
+            self.assertTrue(restore_frame("6h",key,recovered_checkout,restored))
+            self.assertEqual(hashlib.sha256((restored/"training_ledger.sqlite3").read_bytes()).hexdigest(),prior_digest)
             result=check_remote_state("6h",remote,key)
             self.assertEqual(result["records"],2)
             self.assertEqual(result["hop"],0)
