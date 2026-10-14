@@ -25,6 +25,8 @@ def verify_predecessor(run_id, token, *, opener=urlopen):
         raise RuntimeError("previous GitHub workflow has not succeeded")
     if data.get("head_branch")!=REF or data.get("repository",{}).get("full_name")!=REPO:
         raise RuntimeError("wrong GitHub run identity")
+    if data.get("path","").split("@",1)[0] != ".github/workflows/multiframe-persistence-smoke.yml":
+        raise RuntimeError("previous run used an unapproved workflow")
     if data.get("event") not in ("push","workflow_dispatch"):
         raise RuntimeError("unapproved GitHub run event")
     return True
