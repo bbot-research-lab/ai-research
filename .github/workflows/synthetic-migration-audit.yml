@@ -1,0 +1,40 @@
+name: Synthetic frame migration audit (read-only)
+on:
+  push:
+    branches: [feature/research-multiframe-foundation-20261014]
+    paths: ['.github/workflows/synthetic-migration-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        frame: [30m, 1h, 6h, 12h, 1d, 1w]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FRAME: ${{ matrix.frame }}
+      BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install cryptography
+      - name: Read-only remote branch audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BBOT_RESEARCH_STATE_KEY"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          python -m research_addon.audit_synthetic_migration --frame "$FRAME" --remote "https://github.com/${GITHUB_REPOSITORY}.git"
