@@ -1,0 +1,42 @@
+name: One-time 6h synthetic legacy receipt migration
+on:
+  push:
+    branches: [feature/research-multiframe-foundation-20261014]
+    paths: ['.github/workflows/one-time-6h-receipt-migration.yml']
+permissions:
+  contents: write
+concurrency:
+  group: bbot-synthetic-state-6h
+  cancel-in-progress: false
+jobs:
+  migrate-6h:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install cryptography
+      - name: Migrate audited 6h synthetic encrypted record
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$BBOT_RESEARCH_STATE_KEY"
+          test "$GITHUB_REPOSITORY" = "bbot-research-lab/ai-research"
+          test "$GITHUB_REF_NAME" = "feature/research-multiframe-foundation-20261014"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          python -m research_addon.migrate_remote_synthetic \
+            --frame 6h --remote "https://github.com/${GITHUB_REPOSITORY}.git" \
+            --expected-remote-sha 14077beabdf40f189b8fa6080053971223723305 \
+            --approve-synthetic-migration
