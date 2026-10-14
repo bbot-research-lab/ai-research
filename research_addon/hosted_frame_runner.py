@@ -60,6 +60,7 @@ def main():
                 data=(restored/name).read_bytes()
                 if len(data)!=meta["size"] or hashlib.sha256(data).hexdigest()!=meta["sha256"]:
                     raise RuntimeError("remote checkpoint differs from source")
+        print("REMOTE_CHECKPOINT_VERIFIED="+frame, flush=True)
     command=a.command[1:] if a.command[:1]==["--"] else a.command
     if not command:
         p.error("research command is required")
