@@ -130,3 +130,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added bounded `frame` / `hop` workflow_dispatch inputs to the synthetic persistence workflow and synthetic API mock tests.
 - **Not enabled**: the workflow does not invoke this dispatcher itself. GitHub requires a workflow registered on the default branch for workflow_dispatch; this feature-branch-only workflow is not yet registered there. Thus no claim of automatic chaining or 24/7 execution. Push-trigger remains limited to workflow file changes on the feature branch for synthetic smoke.
 - The original 15-min main research runner and EC2 R4 are unchanged.
+
+## Twentieth increment — hosted mid-job remote checkpoint evidence
+- Nineteenth-increment Research CI run 38550350309 passed.
+- Hosted synthetic workflow run 38550517165 passed all six frame jobs. Its 6h frame used `hosted_frame_runner` to write/read back remote encrypted checkpoints while a child job was still alive, with 2-second test interval and `REMOTE_CHECKPOINT_VERIFIED=6h` logged three times. The run first emitted `RESTORED` and completed two bounded batches.
+- This demonstrates intermediate GitHub persistence under a SHORT synthetic test. It does not establish actual 600-second cadence over a long hosted job, workflow-to-workflow self-dispatch, unlimited 24/7 availability, actual V3 official engine use or AWS deployment. Do not enable scheduled chaining before end-to-end guard tests and GitHub default-branch workflow registration.
