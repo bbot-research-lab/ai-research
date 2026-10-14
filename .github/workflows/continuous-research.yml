@@ -386,6 +386,14 @@ jobs:
           $receiptPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/v3/hosted_research_cycle_receipts.json'
           $cycleReceipts | ConvertTo-Json -Depth 6 | Set-Content -Path $receiptPath -Encoding utf8
           Write-Output "ORIGINAL_V3_CYCLE_RECEIPTS_SAVED=$($cycleReceipts.Count)"
+      - name: Continue original V3 full validation and blind queue
+        if: env.BBOT_RESEARCH_STARTED == '1'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location $env:BBOT_LOCAL_ROOT
+          python "$env:GITHUB_WORKSPACE/scripts/continue_original_validation.py"
+          if ($LASTEXITCODE -ne 0) { throw 'Official V3 validation continuation failed; checkpoint remaining results' }
       - name: Report actual original research outcome
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         shell: python
