@@ -1,0 +1,53 @@
+name: Multi-frame training smoke (synthetic only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frame-training:
+    strategy:
+      fail-fast: false
+      matrix:
+        frame: [30m, 1h, 6h, 12h, 1d, 1w]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: training-smoke-${{ github.ref }}-${{ matrix.frame }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install training optimizer dependency
+        run: python -m pip install optuna
+      - name: Execute bounded synthetic training, isolated by frame
+        run: python -m research_addon.training_orchestrator --frame "${{ matrix.frame }}" --root _training_smoke --dry-synthetic
+      - name: Export consistent SQLite snapshot
+        env:
+          FRAME: ${{ matrix.frame }}
+        run: |
+          python - <<'PY'
+          import os
+          import sqlite3
+          from pathlib import Path
+          frame = os.environ["FRAME"]
+          root = Path("_training_smoke") / frame
+          source = sqlite3.connect(str(root / "training_ledger.sqlite3"))
+          target = sqlite3.connect(str(root / "training_ledger.snapshot.sqlite3"))
+          try:
+              source.backup(target)
+          finally:
+              target.close()
+              source.close()
+          if not (root / "training_progress.json").is_file():
+              raise SystemExit("missing progress marker")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-training-${{ matrix.frame }}
+          path: |
+            _training_smoke/${{ matrix.frame }}/training_ledger.snapshot.sqlite3
+            _training_smoke/${{ matrix.frame }}/training_progress.json
+          retention-days: 7
+          if-no-files-found: error
