@@ -209,3 +209,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `.github/workflows/synthetic-receipt-migration.yml`: explicit manual dispatch, selects a single synthetic frame, requires exact approval phrase, serializes per-frame migration alongside the previous smoke group, reads existing encrypted frame branch only, and calls the authenticated remote roundtrip migration code. It does not schedule itself or touch original V3 state.
 - **Not dispatched:** GitHub `workflow_dispatch` on a newly added feature-branch-only workflow may not register until it is present on the default branch. No actual hosted synthetic branch has been migrated yet, and no 24-hour job chaining is enabled.
 - Original main research workflow and production R4 remain untouched.
+
+## Thirty-fourth increment — actual hosted read-only audit
+- Added `audit_synthetic_migration.py` and read-only, feature-branch push-triggered `.github/workflows/synthetic-migration-audit.yml`, with `contents: read`, six independent frames and authenticated AES-GCM restoration.
+- **Actual GitHub Actions run 38552976998 passed all six jobs.** Logs independently confirmed 31 retained synthetic training records per frame (186 across six frame-specific ledgers), with each branch showing LEGACY_NEEDS_APPROVED_MIGRATION and no `continuation_hop.json` receipt. This is not an official V3 result count.
+- Audit made no changes to remote state and did not invoke migration. Pending: explicitly controlled migration/backup and workflow registration for default-branch post-completion listener, followed by the official research backtester integration. Existing main research and EC2 R4 unaffected.
