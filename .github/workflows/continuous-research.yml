@@ -3,7 +3,7 @@ name: Continuous original strategy research
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '7,22,37,52 * * * *'
   push:
     branches: [main]
     paths:
@@ -133,7 +133,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'State checkout failed' }
           $env:BBOT_INITIAL_SEED = if ($stateExists) { '0' } else { '1' }
           @'
-          import base64, io, os, zipfile
+          import base64, io, os, zipfile, gzip, re
           from pathlib import Path, PurePosixPath
           import json, hashlib
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -147,22 +147,59 @@ jobs:
                   raise SystemExit("Uploaded original research state invalid; refusing empty-state research")
           else:
               manifest = json.loads((state / "checkpoint.json").read_text())
-              if manifest.get("schema") != "BBOT_ENCRYPTED_CHECKPOINT_V2" or type(manifest.get("parts")) is not int or not 1 <= manifest["parts"] <= 100:
-                  raise SystemExit("Encrypted checkpoint manifest invalid")
-              data = b"".join((state / f"checkpoint.{i:03d}.enc").read_bytes() for i in range(manifest["parts"]))
-              if hashlib.sha256(data).hexdigest() != manifest.get("sha256"):
-                  raise SystemExit("Encrypted checkpoint hash mismatch")
               key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
-              plain = AESGCM(key).decrypt(data[:12], data[12:], b"BBOT_RESEARCH_STATE_V1")
-              with zipfile.ZipFile(io.BytesIO(plain)) as archive:
-                  for item in archive.infolist():
-                      path = PurePosixPath(item.filename)
-                      if path.is_absolute() or ".." in path.parts or ":" in item.filename or not item.filename.startswith("strategy_lab/results/"):
-                          raise SystemExit("Invalid checkpoint path")
-                      if not item.is_dir():
-                          target = root.joinpath(*path.parts)
-                          target.parent.mkdir(parents=True, exist_ok=True)
-                          target.write_bytes(archive.read(item))
+              if manifest.get("schema") == "BBOT_ENCRYPTED_CHECKPOINT_V3":
+                  data = (state / "checkpoint.index.enc").read_bytes()
+                  if hashlib.sha256(data).hexdigest() != manifest.get("sha256"):
+                      raise SystemExit("Encrypted checkpoint index hash mismatch")
+                  index = json.loads(AESGCM(key).decrypt(data[:12], data[12:], b"BBOT_RESEARCH_INDEX_V3"))
+                  if index.get("schema") != "BBOT_PRIVATE_FILE_INDEX_V3" or not isinstance(index.get("files"), dict) or not index["files"]:
+                      raise SystemExit("Encrypted checkpoint index invalid")
+                  seen, total = set(), 0
+                  for name, record in index["files"].items():
+                      path = PurePosixPath(name)
+                      if path.is_absolute() or ".." in path.parts or ":" in name or "\\" in name or not name.startswith("strategy_lab/results/") or name.casefold() in seen:
+                          raise SystemExit("Invalid incremental checkpoint path")
+                      seen.add(name.casefold())
+                      if type(record.get("size")) is not int or not 0 <= record["size"] <= 3 * 1024**3 or not re.fullmatch(r"[a-f0-9]{64}", record.get("sha256", "")):
+                          raise SystemExit("Invalid incremental file identity")
+                      total += record["size"]
+                      if total > 3 * 1024**3 or not isinstance(record.get("objects"), list) or not 1 <= len(record["objects"]) <= 100:
+                          raise SystemExit("Incremental checkpoint capacity invalid")
+                      chunks = []
+                      for object_id in record["objects"]:
+                          if not isinstance(object_id, str) or not re.fullmatch(r"[a-f0-9]{64}", object_id):
+                              raise SystemExit("Invalid encrypted object identity")
+                          chunk = (state / "objects" / (object_id + ".enc")).read_bytes()
+                          if len(chunk) > 30 * 1024**2 or hashlib.sha256(chunk).hexdigest() != object_id:
+                              raise SystemExit("Encrypted file object hash mismatch")
+                          chunks.append(chunk)
+                      cipher = b"".join(chunks)
+                      packed = AESGCM(key).decrypt(cipher[:12], cipher[12:], b"BBOT_RESEARCH_FILE_V3")
+                      with gzip.GzipFile(fileobj=io.BytesIO(packed)) as stream:
+                          plain = stream.read(record["size"] + 1)
+                      if len(plain) != record["size"] or hashlib.sha256(plain).hexdigest() != record["sha256"]:
+                          raise SystemExit("Incremental checkpoint plaintext identity mismatch")
+                      target = root.joinpath(*path.parts)
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      target.write_bytes(plain)
+                  (root / ".hosted_objects.json").write_text(json.dumps(index), encoding="utf-8")
+              elif manifest.get("schema") == "BBOT_ENCRYPTED_CHECKPOINT_V2" and type(manifest.get("parts")) is int and 1 <= manifest["parts"] <= 100:
+                  data = b"".join((state / f"checkpoint.{i:03d}.enc").read_bytes() for i in range(manifest["parts"]))
+                  if hashlib.sha256(data).hexdigest() != manifest.get("sha256"):
+                      raise SystemExit("Encrypted checkpoint hash mismatch")
+                  plain = AESGCM(key).decrypt(data[:12], data[12:], b"BBOT_RESEARCH_STATE_V1")
+                  with zipfile.ZipFile(io.BytesIO(plain)) as archive:
+                      for item in archive.infolist():
+                          path = PurePosixPath(item.filename)
+                          if path.is_absolute() or ".." in path.parts or ":" in item.filename or not item.filename.startswith("strategy_lab/results/"):
+                              raise SystemExit("Invalid checkpoint path")
+                          if not item.is_dir():
+                              target = root.joinpath(*path.parts)
+                              target.parent.mkdir(parents=True, exist_ok=True)
+                              target.write_bytes(archive.read(item))
+              else:
+                  raise SystemExit("Encrypted checkpoint manifest invalid")
           metadata = root / "strategy_lab/results/.hosted_mtimes.json"
           if not metadata.is_file():
               raise SystemExit("Initial original timestamp manifest missing; refusing duplicate-input reruns")
@@ -197,6 +234,8 @@ jobs:
           import research_controller as controller
           if not controller.managed_dry_run().get("ok"):
               raise SystemExit("Original managed research preflight failed")
+          ledger = json.loads((root / "strategy_lab/results/v3/trial_ledger.json").read_text(encoding="utf-8-sig"))
+          (root / ".hosted_before.json").write_text(json.dumps({"counter":int(ledger.get("counter", 0))}))
           import pandas as pd, hashlib
           from datetime import datetime, timezone, timedelta
           study = controller.strategy_research
@@ -290,6 +329,25 @@ jobs:
           "BBOT_RESEARCH_STARTED=1" >> $env:GITHUB_ENV
           python strategy_lab/roadmap_manager.py *> $null
           if ($LASTEXITCODE -ne 0) { throw 'Original controller failed; no research PASS claimed' }
+      - name: Report actual original research outcome
+        if: always() && env.BBOT_RESEARCH_STARTED == '1'
+        shell: python
+        run: |
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["BBOT_LOCAL_ROOT"])
+          report = json.loads((root / "strategy_lab/results/roadmap_status_latest.json").read_text(encoding="utf-8-sig"))
+          ledger = json.loads((root / "strategy_lab/results/v3/trial_ledger.json").read_text(encoding="utf-8-sig"))
+          before = json.loads((root / ".hosted_before.json").read_text())
+          rows = [row for row in ledger.get("entries", []) if int(row.get("v3_trial", 0)) > before["counter"]]
+          completed = sum(row.get("event") == "COMPLETED" for row in rows)
+          failed = sum(row.get("event") == "COMPLETED" and row.get("status") == "FAIL" for row in rows)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"Original research action: {len(rows)} new trial records, {completed} completed, {failed} failed. Original pass criteria unchanged; engine exit success is not strategy approval. All outcomes enter the encrypted checkpoint.\n")
+          controller = report.get("controller_result", {})
+          outcome = json.dumps(controller.get("result", {})).upper()
+          if report.get("ok") is not True or controller.get("returncode", 0) != 0 or any(marker in outcome for marker in ("RUNTIME_FAIL", "RUN_STRATEGY_FAIL", "RESULT_NOT_FOUND", "SOURCE_MISSING")):
+              raise SystemExit("Original research infrastructure failure; failed state retained; no strategy PASS claimed")
       - name: Save encrypted original checkpoint for next hosted run
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         env:
@@ -299,7 +357,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           @'
-          import base64, io, os, zipfile, json, hashlib
+          import base64, io, os, gzip, json, hashlib
           from pathlib import Path
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
           root = Path(os.environ["BBOT_LOCAL_ROOT"])
@@ -313,31 +371,60 @@ jobs:
                   metadata[name] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
           meta = root / "strategy_lab/results/.hosted_mtimes.json"
           meta.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
-          memory = io.BytesIO()
-          with zipfile.ZipFile(memory, "w", zipfile.ZIP_DEFLATED) as archive:
-              for path in sorted((root / "strategy_lab/results").rglob("*")):
-                  if path.is_file():
-                      archive.write(path, path.relative_to(root).as_posix())
-          nonce = os.urandom(12)
           key = base64.b64decode(os.environ["STATE_KEY"], validate=True)
-          encrypted = nonce + AESGCM(key).encrypt(nonce, memory.getvalue(), b"BBOT_RESEARCH_STATE_V1")
           state = Path(os.environ["RUNNER_TEMP"]) / "research-state"
+          objects = state / "objects"
+          objects.mkdir(parents=True, exist_ok=True)
+          previous = root / ".hosted_objects.json"
+          prior = json.loads(previous.read_text()) if previous.is_file() else {"files": {}}
+          identities = {record["sha256"]: record for record in prior["files"].values()}
+          index = {"schema": "BBOT_PRIVATE_FILE_INDEX_V3", "files": {}}
           chunk_size = 30 * 1024 * 1024
-          parts = (len(encrypted) + chunk_size - 1) // chunk_size
-          if parts > 100:
-              raise SystemExit("Checkpoint capacity exceeded; no partial state commit")
-          for i in range(parts):
-              (state / f"checkpoint.{i:03d}.enc").write_bytes(encrypted[i*chunk_size:(i+1)*chunk_size])
-          for obsolete in state.glob("checkpoint.*.enc"):
-              if obsolete.name not in {f"checkpoint.{i:03d}.enc" for i in range(parts)}:
-                  obsolete.unlink()
-          (state / "checkpoint.json").write_text(json.dumps({"schema":"BBOT_ENCRYPTED_CHECKPOINT_V2", "parts":parts, "sha256":hashlib.sha256(encrypted).hexdigest()},sort_keys=True))
+          added, reused, total = 0, 0, 0
+          for path in sorted((root / "strategy_lab/results").rglob("*")):
+              if not path.is_file():
+                  continue
+              plain = path.read_bytes()
+              digest = hashlib.sha256(plain).hexdigest()
+              total += len(plain)
+              if total > 3 * 1024**3:
+                  raise SystemExit("Checkpoint capacity exceeded; no partial state commit")
+              record = identities.get(digest)
+              if record and record["size"] == len(plain):
+                  for object_id in record["objects"]:
+                      stored = objects / (object_id + ".enc")
+                      if not stored.is_file() or hashlib.sha256(stored.read_bytes()).hexdigest() != object_id:
+                          raise SystemExit("Existing encrypted object damaged; refusing state overwrite")
+                  reused += 1
+              else:
+                  nonce = os.urandom(12)
+                  cipher = nonce + AESGCM(key).encrypt(nonce, gzip.compress(plain, mtime=0), b"BBOT_RESEARCH_FILE_V3")
+                  ids = []
+                  for offset in range(0, len(cipher), chunk_size):
+                      chunk = cipher[offset:offset + chunk_size]
+                      object_id = hashlib.sha256(chunk).hexdigest()
+                      (objects / (object_id + ".enc")).write_bytes(chunk)
+                      ids.append(object_id)
+                  record = {"size": len(plain), "sha256": digest, "objects": ids}
+                  identities[digest] = record
+                  added += 1
+              index["files"][path.relative_to(root).as_posix()] = record
+          if not index["files"]:
+              raise SystemExit("Empty checkpoint forbidden")
+          nonce = os.urandom(12)
+          packed = json.dumps(index, sort_keys=True).encode("utf-8")
+          encrypted = nonce + AESGCM(key).encrypt(nonce, packed, b"BBOT_RESEARCH_INDEX_V3")
+          (state / "checkpoint.index.enc").write_bytes(encrypted)
+          (state / "checkpoint.json").write_text(json.dumps({"schema":"BBOT_ENCRYPTED_CHECKPOINT_V3", "sha256":hashlib.sha256(encrypted).hexdigest()},sort_keys=True))
+          # Immutable old objects and V2 checkpoints remain recoverable; no history deletion.
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"Encrypted checkpoint prepared: {added} new content files, {reused} reused files. Pass and failed research results are both retained. Remote push must still succeed.\n")
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Encrypted checkpoint save failed' }
           Set-Location "$env:RUNNER_TEMP/research-state"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --all -- checkpoint.*
+          git add --all -- checkpoint.* objects
           git commit -m 'research: persist encrypted original checkpoint'
           if ($LASTEXITCODE -ne 0) { throw 'Checkpoint commit failed' }
           $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
