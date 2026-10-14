@@ -1,0 +1,29 @@
+name: Build offline PyArrow wheel (public package only)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/offline-parquet-wheel.yml'
+permissions:
+  contents: read
+jobs:
+  wheel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Download binary PyArrow wheel for offline replay
+        run: |
+          mkdir -p wheelhouse
+          python -m pip download --only-binary=:all: --no-deps --dest wheelhouse 'pyarrow==21.0.0'
+          ls -lh wheelhouse/
+      - name: Upload only public PyPI wheel, never original B-BOT inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyarrow-cp313-linux-x86_64
+          path: wheelhouse/*.whl
+          retention-days: 3
+          if-no-files-found: error
