@@ -334,7 +334,8 @@ jobs:
           # candidates through its own gates; never hand-select stage names.
           # Continue original scheduled research; the original V3 engine owns all
           # stage transitions and official grading. This is not a PASS loop.
-          $cycles = 24
+          $deadline = [DateTime]::UtcNow.AddMinutes(335)
+          $cycle = 0
           $ledgerPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/v3/trial_ledger.json'
           if (-not (Test-Path $ledgerPath)) { throw 'Original trial ledger missing after checkpoint restore; refusing fresh research' }
           $initialCount = @((Get-Content -Raw -Encoding UTF8 $ledgerPath | ConvertFrom-Json).entries).Count
@@ -349,8 +350,9 @@ jobs:
           }
           Write-Output "ORIGINAL_V3_RESUME_VERIFIED=1; PREVIOUS_TRIAL_RECORDS=$initialCount; LAST_TRIAL=$lastTrial"
           $cycleReceipts = [System.Collections.Generic.List[object]]::new()
-          for ($cycle = 1; $cycle -le $cycles; $cycle++) {
-            Write-Output "ORIGINAL_V3_CYCLE_START=$cycle/$cycles"
+          while ([DateTime]::UtcNow -lt $deadline) {
+            $cycle++
+            Write-Output "ORIGINAL_V3_CYCLE_START=$cycle"
             python strategy_lab/roadmap_manager.py *> $null
             if ($LASTEXITCODE -ne 0) { throw "Original controller failed at cycle $cycle; no research PASS claimed" }
             $statusPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/roadmap_status_latest.json'
@@ -378,6 +380,12 @@ jobs:
             $initialCount = $trialCount
             if ($action -in @('GOVERNANCE_BLOCK','SKIP') -or $innerAction -eq 'GOVERNANCE_BLOCK') { throw "Original V3 governance or lock block: $action / $innerAction" }
             if ($action -eq 'AUTO_RESEARCH_MANAGER_STAGE10' -and $null -eq $inner) { throw "Original V3 stage result missing; refuse false success" }
+            # Let the original V3 validator advance one eligible pending
+            # full-validation/blind job after each research action. It alone
+            # controls original pass/fail and final grading.
+            $env:BBOT_VALIDATION_SINGLE_STEP = '1'
+            python "$env:GITHUB_WORKSPACE/scripts/continue_original_validation.py"
+            if ($LASTEXITCODE -ne 0) { throw "Original validation continuation failed after research cycle $cycle" }
             if ($action -eq 'NO_NEW_BOUNDED_INPUT' -or $innerAction -eq 'NO_NEW_BOUNDED_INPUT' -or $innerStatus -in @('NO_NEW_RESEARCH_BACKLOG','NO_WORK_FOR_SELECTED_BUCKET')) {
               Write-Output 'ORIGINAL_V3_NO_MORE_BOUNDED_WORK'
               break
@@ -386,14 +394,6 @@ jobs:
           $receiptPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/v3/hosted_research_cycle_receipts.json'
           $cycleReceipts | ConvertTo-Json -Depth 6 | Set-Content -Path $receiptPath -Encoding utf8
           Write-Output "ORIGINAL_V3_CYCLE_RECEIPTS_SAVED=$($cycleReceipts.Count)"
-      - name: Continue original V3 full validation and blind queue
-        if: env.BBOT_RESEARCH_STARTED == '1'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Set-Location $env:BBOT_LOCAL_ROOT
-          python "$env:GITHUB_WORKSPACE/scripts/continue_original_validation.py"
-          if ($LASTEXITCODE -ne 0) { throw 'Official V3 validation continuation failed; checkpoint remaining results' }
       - name: Report actual original research outcome
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         shell: python
