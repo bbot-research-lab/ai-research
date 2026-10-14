@@ -20,8 +20,9 @@ def main():
     if os.environ.get("B_BOT_V3_SERVER_PUSH_HOLD")!="1":
         raise SystemExit("RESEARCH_HOLD_REQUIRED")
     receipts=[]
-    deadline=time.monotonic()+min(int(os.environ.get('BBOT_VALIDATION_BUDGET_SECONDS','900')),1800)
+    deadline=time.monotonic()+int(os.environ.get('BBOT_VALIDATION_BUDGET_SECONDS','19800'))
     i=0
+    single_step=os.environ.get('BBOT_VALIDATION_SINGLE_STEP')=='1'
     while time.monotonic()<deadline:
         i+=1
         research.sync_new_pipeline_entries()
@@ -48,6 +49,8 @@ def main():
             break
         if not isinstance(result,dict):
             raise SystemExit("ORIGINAL_VALIDATION_RESULT_MISSING")
+        if single_step:
+            break
         if str(result.get("status","")).upper() in ("RUNTIME_FAIL","RUN_STRATEGY_FAIL","RESULT_NOT_FOUND","SOURCE_MISSING"):
             raise SystemExit("ORIGINAL_VALIDATION_INFRASTRUCTURE_FAILURE")
     dest=root/"strategy_lab/results/v3/hosted_validation_continuation.json"
