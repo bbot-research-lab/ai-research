@@ -185,3 +185,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `remote_state_checker.py` for read-only independent Git remote refetch, frame-bound AES authenticated restore, retained experiment-ledger count and actual remote commit timestamp verification, with a local bare-Git test.
 - This checker does NOT yet supply an authenticated continuation hop counter. The completion listener still requires a separately verified `hop` value and is not wired into any default-branch listener; no unattended dispatch can occur.
 - Twenty-eighth-increment CI was still running at the beginning of this increment. Main production research and EC2 R4 unchanged.
+
+## Thirtieth increment — encrypted durable continuation receipt
+- The 29th increment Research CI passed, run 38552036749.
+- Added atomic, bounded `continuation_hop.json` and integrated it into the SQLite snapshot manifest and AES-GCM frame archive. The remote state verifier now refuses to authorize a restart when the encrypted hop receipt is absent, mismatched or invalid, instead of guessing hop zero.
+- Added roundtrip and counter monotonicity regression tests; missing counters cause fail-closed behavior. Existing synthetic state branches from prior stages lack this receipt and require controlled migration before the watcher could ever be enabled.
+- There is still no enabled workflow listener, actual automatic chaining, official V3 backtester or 24-hour deployment. Main research and R4 remain untouched.
