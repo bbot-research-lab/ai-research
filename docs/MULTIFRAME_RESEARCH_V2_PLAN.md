@@ -214,3 +214,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `audit_synthetic_migration.py` and read-only, feature-branch push-triggered `.github/workflows/synthetic-migration-audit.yml`, with `contents: read`, six independent frames and authenticated AES-GCM restoration.
 - **Actual GitHub Actions run 38552976998 passed all six jobs.** Logs independently confirmed 31 retained synthetic training records per frame (186 across six frame-specific ledgers), with each branch showing LEGACY_NEEDS_APPROVED_MIGRATION and no `continuation_hop.json` receipt. This is not an official V3 result count.
 - Audit made no changes to remote state and did not invoke migration. Pending: explicitly controlled migration/backup and workflow registration for default-branch post-completion listener, followed by the official research backtester integration. Existing main research and EC2 R4 unaffected.
+
+## Thirty-fifth increment — exact remote-head audit precondition
+- The 34th-phase six-frame read-only GitHub audit passed (Actions run 38552976998), confirming 31 synthetic records and legacy format per frame.
+- Changed `migrate_remote_synthetic.py` to demand an explicitly approved exact 40-digit remote Git commit SHA, checked against the current branch HEAD *before any mutation*. Mismatches fail closed to avoid publishing migration over newer experiments. Manual migration workflow now requires this approved SHA as an input. Unit regression tests cover mismatched SHA and idempotent migration with the refreshed remote head.
+- Actual remote GitHub state branches have **not been migrated**, and the new migration workflow is not default-branch registered. Production workflows and R4 unchanged.
