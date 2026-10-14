@@ -17,6 +17,24 @@ def stage_frame(frame, snapshot_dir, key, worktree):
     if frame not in FRAMES:
         raise ValueError("unrecognized frame")
     worktree = Path(worktree)
+    # Reuse a valid encrypted object when the snapshot bytes have not changed.
+    existing = worktree / "frames" / (frame + ".json")
+    if existing.is_file():
+        from .frame_snapshot import verify_snapshot
+        from tempfile import TemporaryDirectory
+        import hashlib
+        with TemporaryDirectory() as tmp:
+            if restore_frame(frame, key, worktree, tmp):
+                manifest = verify_snapshot(snapshot_dir)
+                unchanged = set(manifest["files"]) == {
+                    p.name for p in Path(tmp).iterdir() if p.is_file()
+                }
+                for name, record in manifest["files"].items():
+                    content = (Path(tmp) / name).read_bytes()
+                    unchanged = unchanged and len(content) == record["size"]
+                    unchanged = unchanged and hashlib.sha256(content).hexdigest() == record["sha256"]
+                if unchanged:
+                    return json.loads(existing.read_text(encoding="utf-8"))
     objects = worktree / "objects"
     index = publish_bundle(frame, snapshot_dir, key, objects)
     # The index contains no strategy data, only encrypted blob reference.
