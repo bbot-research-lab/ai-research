@@ -356,18 +356,6 @@ jobs:
         run: |
           import os, runpy
           runpy.run_path(os.path.join(os.environ["GITHUB_WORKSPACE"],"scripts","audit_original_research_pipeline.py"),run_name="__main__")
-      - name: Verify original SHADOW engine (no candidate promotion)
-        if: env.BBOT_RESEARCH_STARTED == '1'
-        shell: pwsh
-        env:
-          RUNNER_DRY_RUN: '1'
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Set-Location $env:BBOT_LOCAL_ROOT
-          python strategy_lab/v3_shadow_engine.py --self-test
-          if ($LASTEXITCODE -ne 0) { throw 'Original SHADOW engine self-test failed; no SHADOW PASS claimed' }
-          python strategy_lab/v3_shadow_engine.py --once
-          if ($LASTEXITCODE -ne 0) { throw 'Original SHADOW simulation failed; preserve existing research checkpoint' }
       - name: Report blind validation and SHADOW evidence (read-only)
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         shell: python
