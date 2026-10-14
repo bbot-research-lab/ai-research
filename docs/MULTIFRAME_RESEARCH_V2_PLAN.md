@@ -30,7 +30,7 @@ Date: 2026-10-14. This is a **research-only** expansion. R4 production and the u
 
 ## This branch
 Phase A **implemented**: `research_addon/structure_proposals.py`, `experiment_ledger.py`, `frame_progress.py` and `tests/test_multiframe_foundation.py`.
-**Not implemented on this branch:** Phase B-F, new scheduled workflows, a true 5h30 per-frame research process, 10-minute timer, original research adapter, remote per-frame sync, live server changes. Do not label this branch a completed 24/7 deployment.
+Phase B prototype **implemented in research-only isolation**: `research_addon/training_orchestrator.py` invokes GA and Optuna over deterministic structure proposals, keeps a per-frame ledger, and resumes only after completed batches. A manual-only `.github/workflows/multiframe-training-smoke.yml` defines six parallel **synthetic** workers and uploads consistent per-frame SQLite snapshots, with seven-day artifact retention. This is neither actual V3 research nor long-term remote persistence. CI on commit `449045f1` passed; later additions require their own CI verification.\n\n**Not implemented on this branch:** official V3 candidate adapter, actual market-data backtest in per-frame workers, automatically chained 5h30 jobs, periodic ten-minute remote checkpoints, independently durable frame state beyond artifact retention, central merger, production EC2 integration. Current 15-minute research workflow is unchanged. Do not label this branch a completed 24/7 deployment.
 
 ## Safety
 Only merge after test review. No branch here alters the currently running `continuous-research.yml`, the original private `strategy_lab` code, or EC2 R4.
