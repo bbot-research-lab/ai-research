@@ -235,3 +235,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added scoped one-time feature-branch workflow `.github/workflows/one-time-five-receipt-migration.yml` with exact audited SHA preconditions for remaining frame branches: 30m, 1h, 12h, 1d, 1w.
 - GitHub Actions run 38553783322 completed SUCCESS and emitted 5 times `{'migrated': True, 'hop': 0, 'retained_records': 31}`. Along with 6h migration run 38553583268, all six original 31-record synthetic frame ledgers (186 frame-specific results) were authenticated, migrated and remotely reverified. No real market research is implied.
 - Next work: safely wire completed-run watcher to default-branch workflow with opt-in and correct hop progression, and separately connect official V3 simulation/data under fail-closed rules. Neither auto-chaining nor live R4 changed.
+
+## Forty-first increment — proven second distinct hosted continuation
+- GitHub Actions run 38554513573 completed SUCCESS for a second distinct 6h synthetic workflow run, authenticated restored hop=1, advanced to hop=2 and verified three encrypted remote checkpoint pushes. Log emitted `{'frame': '6h', 'hop': 2, 'advanced': True}` and three `REMOTE_CHECKPOINT_VERIFIED=6h` lines.
+- Added scoped one-time `.github/workflows/one-time-6h-hop2-smoke.yml` to trigger this exact second-step test. This is a manually authored workflow trigger, **not** end-to-end automatic inter-job dispatch; do not claim 24/7 research is active.
+- Official V3 adapter, post-completion default-branch listener and production deployment remain unimplemented. Original operating research and EC2 R4 untouched.
