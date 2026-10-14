@@ -16,7 +16,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   inputs:
-    if: github.event_name != 'schedule' || vars.BBOT_RESEARCH_READY == 'true'
+    # Continuous original V3 research: scheduled 24/7; input check remains fail-closed.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       ready: ${{ steps.check.outputs.ready }}
