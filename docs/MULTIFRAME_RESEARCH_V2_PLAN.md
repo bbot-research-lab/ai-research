@@ -70,3 +70,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `frame_run_manifest.py` and tests to validate independent frame run identities, immutable head/checkpoint hashes, terminal status, timestamps and stale/revision-mismatched resume refusal.
 - This does **not** automatically dispatch a new workflow or make remote continuity proven. The encrypted per-frame manual smoke still needs actual dispatch and two successive runs with per-frame state comparison before being trusted.
 - Do not enable self-restarting GitHub Actions until encrypted remote restore, concurrency controls, budget limits, failure recovery and official V3 adapter have passed end-to-end validation.
+
+## Tenth increment — bounded supervisor persistence callback
+- Confirmed ninth-increment CI success: run 38548294501.
+- `frame_supervisor.supervise()` now accepts an optional `checkpoint_callback(frame, verified_local_snapshot_directory)`. It is invoked after every timed snapshot and at final cleanup; exceptions are not swallowed, so a failed remote persistence callback cannot be silently claimed successful.
+- `tests/test_frame_supervisor.py` checks that callbacks receive manifest-verified, consistent SQLite snapshots.
+- This is an integration seam, not a completed remote upload or a verified 10-minute persisted checkpoint. An authenticated Git push callback and durable store consistency/restore tests are required before production scheduling.
