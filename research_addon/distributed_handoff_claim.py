@@ -6,6 +6,7 @@ reconcile the outcome; never auto-retry a possibly dispatched handoff.
 """
 from __future__ import annotations
 import subprocess
+import secrets
 from pathlib import Path
 from .structure_proposals import FRAMES
 
@@ -30,7 +31,7 @@ def claim_remote(remote,frame,run_id,hop,*,runner=subprocess.run):
         git("init","-q")
         git("config","user.name","github-actions[bot]")
         git("config","user.email","41898282+github-actions[bot]@users.noreply.github.com")
-        (path/"claim.txt").write_text(ref+"\\n")
+        (path/"claim.txt").write_text(ref+"\\n"+secrets.token_hex(16)+"\\n")
         git("add","claim.txt")
         git("commit","-qm","Synthetic immutable handoff claim")
         git("remote","add","origin",remote)
