@@ -23,5 +23,23 @@ class TrainingTests(unittest.TestCase):
             c = go("1d")
             self.assertGreater(c["new_records"], 0)
 
+    def test_failure_does_not_poison_ledger(self):
+        import sqlite3
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as temp:
+            def broken(structure, params):
+                raise RuntimeError("synthetic infrastructure error")
+            with self.assertRaises(RuntimeError):
+                training_batch(
+                    frame="6h", root=temp, objective=broken, seed=2,
+                    structures=1, ga_population=4, ga_generations=1,
+                    optuna_trials=2, data_version="synthetic",
+                    rules_version="test-only", code_version="v1",
+                    symbols=["SYNTHETIC"])
+            path = Path(temp) / "6h/training_ledger.sqlite3"
+            with sqlite3.connect(path) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM experiments").fetchone()[0], 0)
+            self.assertFalse((Path(temp) / "6h/training_progress.json").exists())
+
 if __name__ == "__main__":
     unittest.main()
