@@ -168,3 +168,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `verified_frame_job.py`: before an optional GitHub dispatch, the exact requested timeframe job within the approved previous Actions workflow must have completed successfully, including restore and encrypted checkpoint commit steps. Jobs for other timeframes do not authorize this frame's continuation.
 - Reject missing or duplicate frame job names, unsuccessful mandatory steps, invalid run IDs, and truncated pagination (>100 jobs). Added `tests/test_verified_frame_job.py` and updated stale-checkpoint test mocks.
 - Still no actual inter-job self-dispatch, no registered default-branch dispatch target confirmed, no 5h30 hosted run, and no official V3 parallel integration. The existing production workflow and EC2 R4 remain unchanged.
+
+## Twenty-seventh increment — post-completion handoff architecture
+- Identified a lifecycle barrier: a running GitHub Actions job cannot truthfully verify its *own workflow run* as completed, so a self-dispatch final step cannot satisfy the strict `verified_previous_run` gate.
+- Added `completed_run_handoff.py` and tests validating only completed, successful, approved synthetic workflow_run events with explicit opt-in and bounded frame hops. This is a pure gate; dispatch remains disabled.
+- Correct eventual implementation requires a separate `workflow_run: completed` listener registered on the default branch, per-frame jobs API checks, secret-scope isolation, and independently verified state before scheduling the next run. Feature-branch-only workflow_run events cannot be treated as a deployed 24/7 chain.
+- Main original continuous research workflow and EC2 R4 unchanged.
