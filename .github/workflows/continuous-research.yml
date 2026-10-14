@@ -357,6 +357,7 @@ jobs:
             if ($trialCount -lt $initialCount) { throw "Original trial ledger shrank; stop before any further research" }
             $initialCount = $trialCount
             if ($action -in @('GOVERNANCE_BLOCK','SKIP') -or $innerAction -eq 'GOVERNANCE_BLOCK') { throw "Original V3 governance or lock block: $action / $innerAction" }
+            if ($action -eq 'AUTO_RESEARCH_MANAGER_STAGE10' -and $null -eq $inner) { throw "Original V3 stage result missing; refuse false success" }
             if ($action -eq 'NO_NEW_BOUNDED_INPUT' -or $innerAction -eq 'NO_NEW_BOUNDED_INPUT' -or $innerStatus -in @('NO_NEW_RESEARCH_BACKLOG','NO_WORK_FOR_SELECTED_BUCKET')) {
               Write-Output 'ORIGINAL_V3_NO_MORE_BOUNDED_WORK'
               break
