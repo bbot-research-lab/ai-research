@@ -32,7 +32,7 @@ def inspect_ast(tree, depth=0):
         if isinstance(node, ast.Constant) and isinstance(node.value,str):
             if node.value.startswith("-----BEGIN ") and "PRIVATE KEY" in node.value:
                 flags.add("POTENTIAL_EMBEDDED_PRIVATE_KEY")
-            if depth < MAX_EMBEDDED_DEPTH and len(node.value)>40:
+            if depth < MAX_EMBEDDED_DEPTH and node.value.strip():
                 try: child=ast.parse(node.value)
                 except (SyntaxError,ValueError): continue
                 flags.update("EMBEDDED_"+flag for flag in inspect_ast(child,depth+1))
