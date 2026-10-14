@@ -3,3 +3,4 @@ pyarrow>=17,<22
 pandas>=2.2,<3
 numpy>=1.26,<3
 optuna>=4,<5
+requests>=2.31,<3
