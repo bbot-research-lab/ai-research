@@ -30,7 +30,7 @@ class ContinueChainSafetyTests(unittest.TestCase):
             env.pop("GH_TOKEN",None)
             result=subprocess.run([sys.executable,"-m","research_addon.continue_hosted_chain",
                                    "--frame","6h","--hop","0",
-                                   "--remote",str(remote),"--result","success"],
+                                   "--remote",str(remote),"--result","success","--previous-run-id","1"],
                                   env=env,capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertIn("CHAIN_DISABLED",result.stdout)
