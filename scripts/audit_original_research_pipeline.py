@@ -73,9 +73,9 @@ def main():
         summary.write("## Original pipeline functional evidence audit\n")
         for name,item in report["steps"].items():
             summary.write(f"- {name}: {item['state']}\n")
-        summary.write("### Original frame records (not execution proof)\\n")
+        summary.write("### Original frame records (not execution proof)\n")
         for frame,item in report["frames"].items():
-            summary.write(f"- {frame}: {item['records']} records, {item['completed']} completed, {item['failed']} failed\\n")
+            summary.write(f"- {frame}: {item['records']} records, {item['completed']} completed, {item['failed']} failed\n")
     print("ORIGINAL_PIPELINE_AUDIT="+json.dumps(report,sort_keys=True))
 
 if __name__=="__main__":
