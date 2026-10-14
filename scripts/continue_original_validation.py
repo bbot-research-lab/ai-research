@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 def main():
@@ -19,7 +20,10 @@ def main():
     if os.environ.get("B_BOT_V3_SERVER_PUSH_HOLD")!="1":
         raise SystemExit("RESEARCH_HOLD_REQUIRED")
     receipts=[]
-    for i in range(12):
+    deadline=time.monotonic()+min(int(os.environ.get('BBOT_VALIDATION_BUDGET_SECONDS','900')),1800)
+    i=0
+    while time.monotonic()<deadline:
+        i+=1
         research.sync_new_pipeline_entries()
         before=research.pipeline_work_status()
         if before.get("full_validation_pending",0):
@@ -39,6 +43,9 @@ def main():
         row={"cycle":i+1,"stage":stage,"status":(result.get("status") if isinstance(result,dict) else "UNSPECIFIED"),"before":before,"after":after}
         receipts.append(row)
         print("ORIGINAL_VALIDATION_STEP="+json.dumps(row,sort_keys=True,default=str),flush=True)
+        if before==after:
+            print('ORIGINAL_VALIDATION_NO_PROGRESS_RETRY_NEXT_RUN',flush=True)
+            break
         if not isinstance(result,dict):
             raise SystemExit("ORIGINAL_VALIDATION_RESULT_MISSING")
         if str(result.get("status","")).upper() in ("RUNTIME_FAIL","RUN_STRATEGY_FAIL","RESULT_NOT_FOUND","SOURCE_MISSING"):
@@ -47,6 +54,7 @@ def main():
     dest.parent.mkdir(parents=True,exist_ok=True)
     dest.write_text(json.dumps({"schema":"BBOT_ORIGINAL_VALIDATION_CONTINUATION_V1","steps":receipts,"official_grade_assigned":False},indent=2,sort_keys=True,default=str),encoding="utf-8")
     print("ORIGINAL_VALIDATION_CONTINUATION_STEPS="+str(len(receipts)),flush=True)
+    print('ORIGINAL_VALIDATION_RESUME_NEXT_RUN=1',flush=True)
 
 if __name__=="__main__":
     main()
