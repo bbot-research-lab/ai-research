@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        frame: [1h, 6h]
+        frame: [30m, 1h, 6h, 12h, 1d, 1w]
     concurrency:
       group: bbot-synthetic-state-${{ matrix.frame }}
       cancel-in-progress: false
