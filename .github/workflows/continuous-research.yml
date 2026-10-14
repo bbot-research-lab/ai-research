@@ -329,8 +329,25 @@ jobs:
           Get-ChildItem Env: | Where-Object { $_.Name -match '^(BINANCE_|AWS_|TELEGRAM_|GH_TOKEN$|GITHUB_TOKEN$|API_KEY$|API_SECRET$)' } | ForEach-Object { Remove-Item "Env:$($_.Name)" }
           Set-Location $env:BBOT_LOCAL_ROOT
           "BBOT_RESEARCH_STARTED=1" >> $env:GITHUB_ENV
-          python strategy_lab/roadmap_manager.py *> $null
-          if ($LASTEXITCODE -ne 0) { throw 'Original controller failed; no research PASS claimed' }
+          # One original controller invocation performs one bounded V3 task.
+          # Re-invoke it to let the ORIGINAL scheduler advance qualified
+          # candidates through its own gates; never hand-select stage names.
+          $cycles = 4
+          for ($cycle = 1; $cycle -le $cycles; $cycle++) {
+            Write-Output "ORIGINAL_V3_CYCLE_START=$cycle/$cycles"
+            python strategy_lab/roadmap_manager.py *> $null
+            if ($LASTEXITCODE -ne 0) { throw "Original controller failed at cycle $cycle; no research PASS claimed" }
+            $statusPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/roadmap_status_latest.json'
+            if (-not (Test-Path $statusPath)) { throw "Missing original controller result at cycle $cycle" }
+            $status = Get-Content -Raw -Encoding UTF8 $statusPath | ConvertFrom-Json
+            if ($status.ok -ne $true) { throw "Original controller reported failure at cycle $cycle" }
+            $action = [string]$status.controller_result.action
+            Write-Output "ORIGINAL_V3_CYCLE_FINISHED=$cycle; ACTION=$action"
+            if ($action -in @('NO_NEW_BOUNDED_INPUT','NO_NEW_RESEARCH_BACKLOG')) {
+              Write-Output 'ORIGINAL_V3_QUEUE_EMPTY'
+              break
+            }
+          }
       - name: Report actual original research outcome
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         shell: python
