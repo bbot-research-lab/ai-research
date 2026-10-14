@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 
 from .dispatch_next_research import dispatch_next
 from .verified_previous_run import verify_predecessor
+from .verified_frame_job import verify_frame_job
 from .frame_remote_git import checkout_frame
 from .git_frame_checkpoint import restore_frame
 from .frame_snapshot import verify_snapshot
@@ -35,6 +36,7 @@ def main():
     if args.result != "success":
         raise RuntimeError("previous job was not successful")
     verify_predecessor(args.previous_run_id,token)
+    verify_frame_job(args.previous_run_id,args.frame,token)
     with TemporaryDirectory() as temp:
         worktree=Path(temp)/"remote"
         if not checkout_frame(args.remote,args.frame,worktree):
