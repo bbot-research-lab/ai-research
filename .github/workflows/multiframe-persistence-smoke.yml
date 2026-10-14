@@ -95,3 +95,23 @@ jobs:
             git -C "$RUNNER_TEMP/frame-state" commit -m "Checkpoint synthetic frame $FRAME"
           fi
           git -C "$RUNNER_TEMP/frame-state" -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$branch"
+
+      - name: Verify mid-job encrypted remote checkpoint (6h synthetic only)
+        if: ${{ matrix.frame == '6h' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          python -m research_addon.hosted_frame_runner \
+            --frame "$FRAME" --root "$RUNNER_TEMP/training" \
+            --worktree "$RUNNER_TEMP/frame-state" \
+            --max-seconds 40 --checkpoint-seconds 2 --grace-seconds 8 \
+            -- bash -c 'python -m research_addon.bounded_research_continuation --frame "$1" --root "$2" --batches 2; sleep 5' \
+            _ "$FRAME" "$RUNNER_TEMP/training"
