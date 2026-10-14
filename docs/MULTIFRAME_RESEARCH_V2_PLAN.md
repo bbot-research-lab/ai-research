@@ -64,3 +64,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `tests/test_frame_git_sync.py`: local isolated Git roundtrip verifies encrypted object commit and checkpoint restoration; missing frame ledger fails closed.
 - The manual-only six-frame remote persistence smoke was previously added but has **not been dispatched**. No actual GitHub remote state continuation, 10-minute remote checkpoint, unattended restart, official V3 parallel runner, or permanent storage is confirmed.
 - Do not deploy real strategy material to synthetic-state branches. Existing original research `main` workflows and R4 are unchanged.
+
+## Ninth increment — safe chain-resume gating
+- Confirmed eighth-increment GitHub CI success: run 38548125891.
+- Added `frame_run_manifest.py` and tests to validate independent frame run identities, immutable head/checkpoint hashes, terminal status, timestamps and stale/revision-mismatched resume refusal.
+- This does **not** automatically dispatch a new workflow or make remote continuity proven. The encrypted per-frame manual smoke still needs actual dispatch and two successive runs with per-frame state comparison before being trusted.
+- Do not enable self-restarting GitHub Actions until encrypted remote restore, concurrency controls, budget limits, failure recovery and official V3 adapter have passed end-to-end validation.
