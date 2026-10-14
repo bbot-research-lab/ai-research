@@ -36,8 +36,12 @@ class OfficialStageTests(unittest.TestCase):
     def test_missing_modules_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:
             archives=self.fixtures(td, omit="stoch.py")
-            with self.assertRaisesRegex(ValueError,"stoch.py"):
-                stage(*archives, Path(td)/"staged")
+            import scripts.staged_official_replay as replay
+            e = hashlib.sha256(b"synthetic:gate_lab_fast.py").hexdigest()
+            c = hashlib.sha256(b"synthetic:gate_lab_exact_long_cache.parquet").hexdigest()
+            with patch.object(replay, "ENGINE_SHA", e), patch.object(replay, "CACHE_SHA", c):
+                with self.assertRaisesRegex(ValueError, "stoch.py"):
+                    stage(*archives, Path(td)/"staged")
 
     def test_pinned_hash_mismatch_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:
