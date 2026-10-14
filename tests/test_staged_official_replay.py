@@ -1,4 +1,5 @@
 import hashlib
+import json
 import tempfile
 import unittest
 import zipfile
@@ -25,6 +26,7 @@ class OfficialStageTests(unittest.TestCase):
                     if member == omit:
                         continue
                     data=(b"tampered" if tamper and member=="gate_lab_fast.py" else
+                          json.dumps({"auto_deploy":False,"mode":"EXACT_SIGNAL_CACHE"}).encode() if member=="strategy_lab/lab_config.json" else
                           ("synthetic:"+member).encode())
                     # Original user's Windows ZIP stores backslash-separated names.
                     z.writestr(member.replace("/", "\\"), data)
@@ -42,6 +44,18 @@ class OfficialStageTests(unittest.TestCase):
             archives=self.fixtures(td, tamper=True)
             with self.assertRaisesRegex(ValueError,"hash mismatch"):
                 stage(*archives, Path(td)/"staged")
+
+    def test_live_deploy_config_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            archives=self.fixtures(td)
+            import scripts.staged_official_replay as replay
+            e=hashlib.sha256(b"synthetic:gate_lab_fast.py").hexdigest()
+            c=hashlib.sha256(b"synthetic:gate_lab_exact_long_cache.parquet").hexdigest()
+            with zipfile.ZipFile(archives[0],"a") as z:
+                z.writestr("strategy_lab/lab_config.json",json.dumps({"auto_deploy":True,"mode":"EXACT_SIGNAL_CACHE"}))
+            # Deliberately reject duplicate normalized names before evaluating config.
+            with patch.object(replay,"ENGINE_SHA",e), patch.object(replay,"CACHE_SHA",c):
+                with self.assertRaises(ValueError): stage(*archives,Path(td)/"staged")
 
     def test_windows_zip_paths_and_root_layout(self):
         with tempfile.TemporaryDirectory() as td:
