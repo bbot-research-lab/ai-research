@@ -174,3 +174,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `completed_run_handoff.py` and tests validating only completed, successful, approved synthetic workflow_run events with explicit opt-in and bounded frame hops. This is a pure gate; dispatch remains disabled.
 - Correct eventual implementation requires a separate `workflow_run: completed` listener registered on the default branch, per-frame jobs API checks, secret-scope isolation, and independently verified state before scheduling the next run. Feature-branch-only workflow_run events cannot be treated as a deployed 24/7 chain.
 - Main original continuous research workflow and EC2 R4 unchanged.
+
+## Twenty-eighth increment — isolated completed-run coordinator
+- 27th-increment Research CI passed: 38551775818.
+- Added `completion_listener.py`: injectable, default-off coordination for completed approved GitHub workflow events, real predecessor verification, per-frame job step verification and a separately authenticated checkpoint state check before requesting a bounded next dispatch.
+- Added `tests/test_completion_listener.py` for default-off, per-frame filtering and failed remote state refusal.
+- Deliberately NOT deployed as a default-branch `workflow_run` listener. No trustworthy `state_checker` integration exists yet; trying to enable the entrypoint raises a hard error rather than pretending it can verify remote states. No autonomous chaining or actual V3/market research is active. Production R4 and existing research workflow unchanged.
