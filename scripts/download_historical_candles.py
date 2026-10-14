@@ -33,7 +33,7 @@ def fetch(session, source_url):
         files=[x for x in z.namelist() if x.endswith(".csv") and "/" not in x and "\\" not in x]
         if len(files)!=1: raise ValueError("unrecognized public archive contents")
         raw=z.read(files[0])
-    frame=pd.read_csv(io.BytesIO(raw),header=None,names=COLS,usecols=list(range(6)),dtype=str)
+    frame=pd.read_csv(io.BytesIO(raw),header=None,names=COLS[:6],usecols=list(range(6)),dtype=str)
     if len(frame) and frame.iloc[0,0].strip().lower().replace(" ","_")=="open_time":
         frame=frame.iloc[1:].copy()
     for column in COLS[:6]:
