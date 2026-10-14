@@ -15,7 +15,7 @@ class ContinueHostedChainTests(unittest.TestCase):
             result=subprocess.run([sys.executable,"-m",
                 "research_addon.continue_hosted_chain","--frame","6h",
                 "--hop","0","--remote",str(Path(temp)/"missing.git"),
-                "--result","success"],env=env,capture_output=True,text=True)
+                "--result","success","--previous-run-id","1"],env=env,capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertIn("CHAIN_DISABLED",result.stdout)
 
