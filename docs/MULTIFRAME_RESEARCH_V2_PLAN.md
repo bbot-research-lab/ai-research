@@ -163,3 +163,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Twenty-fourth-increment Research CI passed: run 38551282701.
 - Hardened `verified_previous_run.py` to require the predecessor run's actual GitHub `path` to identify `.github/workflows/multiframe-persistence-smoke.yml`, not merely a successful action in the approved repository and branch. This prevents unrelated successful CI jobs being used to authorize synthetic continuation.
 - Expanded unit tests for rejecting unrelated workflow paths. The cross-job dispatcher is still disabled by default, original main research and R4 remain unchanged, and real 24/7 operation is not yet active.
+
+## Twenty-sixth increment — require successful per-frame predecessor job
+- Added `verified_frame_job.py`: before an optional GitHub dispatch, the exact requested timeframe job within the approved previous Actions workflow must have completed successfully, including restore and encrypted checkpoint commit steps. Jobs for other timeframes do not authorize this frame's continuation.
+- Reject missing or duplicate frame job names, unsuccessful mandatory steps, invalid run IDs, and truncated pagination (>100 jobs). Added `tests/test_verified_frame_job.py` and updated stale-checkpoint test mocks.
+- Still no actual inter-job self-dispatch, no registered default-branch dispatch target confirmed, no 5h30 hosted run, and no official V3 parallel integration. The existing production workflow and EC2 R4 remain unchanged.
