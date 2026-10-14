@@ -372,6 +372,8 @@ jobs:
           Set-Location $env:BBOT_LOCAL_ROOT
           python strategy_lab/v3_shadow_engine.py --self-test
           if ($LASTEXITCODE -ne 0) { throw 'Original SHADOW engine self-test failed; no SHADOW PASS claimed' }
+          python strategy_lab/v3_shadow_engine.py --once
+          if ($LASTEXITCODE -ne 0) { throw 'Original SHADOW simulation failed; preserve existing research checkpoint' }
       - name: Save encrypted original checkpoint for next hosted run
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         env:
