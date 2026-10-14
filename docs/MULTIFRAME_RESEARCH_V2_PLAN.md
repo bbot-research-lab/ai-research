@@ -158,3 +158,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `verified_previous_run.py` and guarded `continue_hosted_chain.py` with required `--previous-run-id`: continuation now requires GitHub API confirmation that the referenced run completed successfully on the approved feature branch and approved repository, instead of blindly trusting caller-provided `--result success`.
 - Added synthetic mocked API validation tests, updated default-off tests, and repaired the stale-commit-time test to mock only the predecessor API while retaining an actual bare-Git remote checkout.
 - This change remains default-off. Does not activate inter-job dispatch, a 5h30 research loop, real market research, or production deployment. Verify CI before approval.
+
+## Twenty-fifth increment — approved workflow identity enforcement
+- Twenty-fourth-increment Research CI passed: run 38551282701.
+- Hardened `verified_previous_run.py` to require the predecessor run's actual GitHub `path` to identify `.github/workflows/multiframe-persistence-smoke.yml`, not merely a successful action in the approved repository and branch. This prevents unrelated successful CI jobs being used to authorize synthetic continuation.
+- Expanded unit tests for rejecting unrelated workflow paths. The cross-job dispatcher is still disabled by default, original main research and R4 remain unchanged, and real 24/7 operation is not yet active.
