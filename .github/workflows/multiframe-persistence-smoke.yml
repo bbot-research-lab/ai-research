@@ -73,6 +73,11 @@ jobs:
           BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
         run: |
           python -m research_addon.frame_checkpoint_cli restore --frame "$FRAME" --root "$RUNNER_TEMP/training" --worktree "$RUNNER_TEMP/frame-state"
+      - name: Enforce authenticated persisted continuation hop
+        env:
+          REQUESTED_HOP: ${{ inputs.hop || 0 }}
+        run: |
+          python -m research_addon.prepare_hosted_hop --frame "$FRAME" --root "$RUNNER_TEMP/training" --hop "$REQUESTED_HOP"
       - name: Synthetic training (never runs original V3 engine)
         run: |
           python -m research_addon.bounded_research_continuation --frame "$FRAME" --root "$RUNNER_TEMP/training" --batches 2
