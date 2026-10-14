@@ -34,3 +34,10 @@ Phase B prototype **implemented in research-only isolation**: `research_addon/tr
 
 ## Safety
 Only merge after test review. No branch here alters the currently running `continuous-research.yml`, the original private `strategy_lab` code, or EC2 R4.
+
+## Fourth increment (experimental only)
+- Added `frame_snapshot.py` using SQLite online backup, SHA-256 manifest, corruption rejection, and restore-to-empty-directory. Snapshot files are **not encrypted**, so they must never be published with real private strategy results or account data; protected authenticated remote transport is a separate pending milestone.
+- Added `frame_supervisor.py` to bound an explicitly supplied child research command; default budget 19,800 seconds with 1,200 seconds reserved for graceful stop and local snapshot every 600 seconds. This is a subprocess safety wrapper, not a currently scheduled long-running job.
+- Added dedicated snapshot and supervisor tests. They run synthetic data only.
+- Manual six-frame workflow remains a synthetic smoke, not an official research run. All changes are isolated from main and R4.
+- **Still needed before production of a 24h research service:** official V3 candidate adapter, secure remote per-frame durable checkpoint + encryption, on-resume restore, chain scheduling with concurrency guards and quotas, live candle datasets and replay verification, monitor/watchdog, evidence retention strategy and operational tests.
