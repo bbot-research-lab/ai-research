@@ -349,8 +349,8 @@ jobs:
             $innerStatus = if ($null -ne $inner) { [string]$inner.status } else { '' }
             $innerAction = if ($null -ne $inner) { [string]$inner.action } else { '' }
             Write-Output "ORIGINAL_V3_CYCLE_FINISHED=$cycle; ACTION=$action; STAGE_STATUS=$innerStatus; STAGE_ACTION=$innerAction"
-            if ($action -in @('GOVERNANCE_BLOCK','SKIP')) { throw "Original V3 governance or lock block: $action" }
-            if ($action -eq 'NO_NEW_BOUNDED_INPUT' -or $innerStatus -in @('NO_NEW_RESEARCH_BACKLOG','NO_WORK_FOR_SELECTED_BUCKET')) {
+            if ($action -in @('GOVERNANCE_BLOCK','SKIP') -or $innerAction -eq 'GOVERNANCE_BLOCK') { throw "Original V3 governance or lock block: $action / $innerAction" }
+            if ($action -eq 'NO_NEW_BOUNDED_INPUT' -or $innerAction -eq 'NO_NEW_BOUNDED_INPUT' -or $innerStatus -in @('NO_NEW_RESEARCH_BACKLOG','NO_WORK_FOR_SELECTED_BUCKET')) {
               Write-Output 'ORIGINAL_V3_NO_MORE_BOUNDED_WORK'
               break
             }
