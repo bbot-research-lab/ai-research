@@ -30,7 +30,11 @@ def stage_frame(frame, snapshot_dir, key, worktree):
                     p.name for p in Path(tmp).iterdir() if p.is_file()
                 }
                 for name, record in manifest["files"].items():
-                    content = (Path(tmp) / name).read_bytes()
+                    candidate = Path(tmp) / name
+                    if not candidate.is_file():
+                        unchanged = False
+                        break
+                    content = candidate.read_bytes()
                     unchanged = unchanged and len(content) == record["size"]
                     unchanged = unchanged and hashlib.sha256(content).hexdigest() == record["sha256"]
                 if unchanged:
