@@ -76,3 +76,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - `frame_supervisor.supervise()` now accepts an optional `checkpoint_callback(frame, verified_local_snapshot_directory)`. It is invoked after every timed snapshot and at final cleanup; exceptions are not swallowed, so a failed remote persistence callback cannot be silently claimed successful.
 - `tests/test_frame_supervisor.py` checks that callbacks receive manifest-verified, consistent SQLite snapshots.
 - This is an integration seam, not a completed remote upload or a verified 10-minute persisted checkpoint. An authenticated Git push callback and durable store consistency/restore tests are required before production scheduling.
+
+## Eleventh increment — pre-publication checkpoint guard
+- Added `checkpoint_publish_guard.py`: verifies source snapshot SHA256 and checks decrypted staged ciphertext against each source file's exact bytes in an external temporary directory. Does not write decrypted plaintext under a Git worktree.
+- Added `tests/test_checkpoint_publish_guard.py` for roundtrip and source corruption rejection.
+- **Not yet verified:** actual GitHub push, remote refetch, two consecutive workflows, live 10-minute remote checkpoints or self-dispatch. Do not claim remote durability from local unit tests. Existing `main` continuous workflow and R4 are unchanged.
