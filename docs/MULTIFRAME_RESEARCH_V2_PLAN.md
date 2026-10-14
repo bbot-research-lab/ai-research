@@ -141,3 +141,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `continue_hosted_chain.py`: fail-closed opt-in controller performs fresh Git remote checkout, authenticates frame checkpoint restoration and uses the bounded GitHub workflow-dispatch API bridge. It explicitly prints CHAIN_DISABLED without accessing credentials or network unless `BBOT_SYNTHETIC_CHAIN_ENABLED=true`.
 - Added `tests/test_continue_hosted_chain.py` for default-off behavior.
 - **Not wired into a workflow step**: no GitHub job-to-job auto-dispatch is enabled; GitHub workflow_dispatch must be registered on default branch. No scheduled 24/7 action or official V3 backtesting was started.
+
+## Twenty-second increment — strengthened default-off continuation checks
+- Added remote ciphertext-index existence checks to `continue_hosted_chain.py` after decrypting remote frame state, before optional dispatch.
+- Added `tests/test_continue_chain_safety.py`: a real local bare Git remote with encrypted synthetic ledger is present, but the continuation controller remains disabled without any GitHub token.
+- No workflow invocation of the dispatcher, no GitHub auto-restart activation, no official V3 strategy research activation and no R4 changes.
