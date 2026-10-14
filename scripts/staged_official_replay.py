@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -66,8 +67,10 @@ def main():
     p.add_argument("material_modules_zip",type=Path)
     p.add_argument("--timeout",type=int,default=900)
     p.add_argument("--execute",action="store_true",help="Opt in to full original research backtest")
+    p.add_argument("--output-dir",type=Path,help="Private directory for retained official result JSON")
     args=p.parse_args()
     if args.timeout<1 or args.timeout>21600: p.error("timeout must be 1..21600")
+    if args.execute and args.output_dir is None: p.error("--execute requires --output-dir; otherwise reports are deleted")
     with tempfile.TemporaryDirectory(prefix="bbot_original_isolated_") as temp:
         root=stage(args.original_research_zip,args.engine_cache_zip,args.material_modules_zip,temp)
         print("Original input hashes verified; all official material modules staged.")
@@ -89,6 +92,21 @@ def main():
         print("Executing official runner in temp directory; no original source patches.")
         result=subprocess.run([sys.executable,str(runner),str(strategy)],cwd=root,
                               env=env,timeout=args.timeout,check=False)
+        reports=list((root/"strategy_lab/results").glob("*.json"))
+        if result.returncode==0 and not reports:
+            print("ERROR: original runner returned 0 but created no result JSON")
+            return 3
+        if reports:
+            destination=args.output_dir.expanduser().resolve()
+            if destination == root or root in destination.parents:
+                raise ValueError("report destination must be outside temporary staging")
+            destination.mkdir(parents=True,exist_ok=True)
+            for report in reports:
+                target=destination/report.name
+                if target.exists():
+                    raise FileExistsError("refusing to overwrite an existing result: "+str(target))
+                shutil.copy2(report,target)
+                print("RETAINED_OFFICIAL_RESULT =",target)
         return result.returncode
 
 if __name__=="__main__":
