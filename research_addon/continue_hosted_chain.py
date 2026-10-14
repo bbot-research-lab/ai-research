@@ -45,15 +45,19 @@ def main():
         # Compare ciphertext content to its remote index and authenticate the
         # restored ledger; do not treat missing or corrupt metadata as success.
         index_path=worktree/"frames"/(args.frame+".json")
-        import json, hashlib
+        import json
         index=json.loads(index_path.read_text(encoding="utf-8"))
         if index["frame"] != args.frame or not (worktree/"objects"/(index["object"]+".enc")).is_file():
             raise RuntimeError("invalid remote frame checkpoint index")
-    # A freshly verified remote checkpoint is the checkpoint authorization.
-    now=dt.datetime.now(dt.timezone.utc).isoformat()
+    # Use the actual remote commit timestamp, never a synthesized current time.
+    import subprocess
+    stamp=subprocess.run(["git","-C",str(worktree),"show","-s","--format=%cI","HEAD"],
+                         capture_output=True,text=True,check=True).stdout.strip()
+    if not stamp:
+        raise RuntimeError("missing remote checkpoint commit timestamp")
     hop=dispatch_next(frame=args.frame,job_result=args.result,
                       checkpoint_verified=True,enabled=True,
-                      completed_hops=args.hop,last_checkpoint_at=now,
+                      completed_hops=args.hop,last_checkpoint_at=stamp,
                       token=token)
     print("DISPATCHED="+str(hop) if hop else "CHAIN_STOPPED")
     return 0
