@@ -5,6 +5,7 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   push:
+    branches: [main]
     paths:
       - '.github/workflows/continuous-research.yml'
 permissions:
@@ -116,6 +117,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
+          Write-Output "::add-mask::$auth"
           git -c "http.extraheader=AUTHORIZATION: basic $auth" ls-remote --exit-code --heads origin research-state > $null
           $stateExists = $LASTEXITCODE -eq 0
           if (!$stateExists -and $LASTEXITCODE -ne 2) { throw 'State lookup failed; refusing baseline reset' }
@@ -174,7 +176,8 @@ jobs:
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Checkpoint validation failed; refusing empty-state research' }
           "BBOT_STATE_RESTORED=1" >> $env:GITHUB_ENV
-      - name: Validate original governance and run original controller
+      - name: Validate original governance and plan required public candles
+        id: plan
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -194,8 +197,96 @@ jobs:
           import research_controller as controller
           if not controller.managed_dry_run().get("ok"):
               raise SystemExit("Original managed research preflight failed")
+          import pandas as pd, hashlib
+          from datetime import datetime, timezone, timedelta
+          study = controller.strategy_research
+          work = study.pipeline_work_status()
+          selection = controller.task_queue.preview_auto_research_bucket(controller._managed_availability(work), bool(work.get("historical_backlog_mode")))
+          bucket = selection.get("bucket") if selection else ""
+          candidates = []
+          if bucket in {"TRAILING_AND_REENTRY", "INDIVIDUAL_TRAILING"}:
+              phase = "INDIVIDUAL_TRAILING_OPTIMIZATION_PENDING" if work.get("trailing_pending") else "REENTRY_RESEARCH_PENDING"
+              candidates = [x for x in study.load(study.HISTORICAL_STAGE2, {}).get("entries", []) if x.get("eligible") is True and x.get("pipeline_stage") == phase]
+          elif bucket in {"HISTORICAL_314_PIPELINE", "ENTRY_AND_FINAL_RISK", "FULL_VALIDATION", "FULL_VALIDATION_AND_BLIND", "SEALED_FINAL_BLIND", "TARGETED_REDEVELOPMENT"}:
+              # Preparing every eligible pending timeframe preserves original scheduler choices.
+              candidates = [x for x in study.load(study.HISTORICAL_STAGE2, {}).get("entries", []) if x.get("eligible") is True and any(mark in str(x.get("pipeline_stage", "")) for mark in ("PENDING", "INCOMPLETE"))]
+          elif bucket == "NEW_PURE_AND_HARD_PASS":
+              nxt = study.choose_next()
+              if nxt:
+                  tf, source = nxt
+                  candidates = [{"timeframe":tf, "canonical_source_file":str(source)}]
+              else:
+                  grammar = controller.hypothesis_factory.choose_next()
+                  if grammar:
+                      tf, hypothesis = grammar
+                      candidates = [{"timeframe":tf}]
+                  else:
+                      tf = controller.combination_research.choose_next_tf()
+                      if tf:
+                          candidates = [{"timeframe":tf}]
+          if bucket in {"TRAILING_AND_REENTRY", "INDIVIDUAL_TRAILING"}:
+              candidates = candidates[:1]  # Original trailing/reentry action consumes the first pending target.
+          if not candidates:
+              raise SystemExit("No verified original research input requirement; no trial reserved")
+          timeframes = sorted({str(x["timeframe"]).lower().replace("1m", "1M") for x in candidates})
+          # Every slot requires authenticated original bars before its trial is reserved.
+          supported = {"30m", "1h", "6h", "12h", "1d", "1w", "1M"}
+          if any(tf not in supported for tf in timeframes):
+              raise SystemExit("Required original candle interval not supported by verified downloader")
+          cache_path = Path(config["data_file"])
+          cache = pd.read_parquet(cache_path, columns=["symbol", "ts"])
+          symbols = sorted(cache.symbol.unique().tolist())
+          last_timestamp = int(cache.ts.max())
+          if bucket in {"TRAILING_AND_REENTRY", "INDIVIDUAL_TRAILING", "NEW_PURE_AND_HARD_PASS", "HISTORICAL_314_PIPELINE", "ENTRY_AND_FINAL_RISK"}:
+              # Ask the original runner for its exact fixed-window dataset; never backfill with today's selection.
+              import run_strategy as official
+              a, b = study.hard_pass_dates()
+              os.environ.update(BBOT_RESEARCH_DATASET_MODE="HARD_PASS_ONLY", BBOT_RESEARCH_START=a, BBOT_RESEARCH_END=b)
+              window = official.hard_pass_window_from_env()
+              datasets = official.make_hard_pass_dataset_windows(cache, window["start_ts"], window["end_ts"])
+              selected = datasets[official.HARD_PASS_DATASET]
+              symbols = selected["symbols"]
+              last_timestamp = max(row["end"] for row in selected["windows"].values())
+          start = datetime.fromtimestamp(int(cache.ts.min()), timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+          end = datetime.fromtimestamp(last_timestamp, timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+          plan = {"symbols":symbols, "timeframes":timeframes, "start":start.isoformat(), "end":end.isoformat()}
+          (root / ".hosted_candle_plan.json").write_text(json.dumps(plan))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("cache_key=bbot-candles-" + hashlib.sha256(cache_path.read_bytes()).hexdigest()[:16] + "-" + "-".join(timeframes) + "-" + end.strftime("%Y%m%d") + "\n")
+          print("Original governance PASS; public candle prerequisites planned; no research approval implied.")
           '@ | python -
-          if ($LASTEXITCODE -ne 0) { throw 'Original preflight failed' }
+          if ($LASTEXITCODE -ne 0) { throw 'Original input preflight failed; no trial reserved' }
+      - uses: actions/cache/restore@v4
+        id: candles
+        with:
+          path: 'C:/my/bottest/data/candles'
+          key: ${{ steps.plan.outputs.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.plan.outputs.cache_key }}-
+      - name: Recover and validate authentic public candles before reserving a trial
+        shell: python
+        run: |
+          import json, os, sys
+          from datetime import datetime
+          from pathlib import Path
+          sys.path.insert(0, str(Path(os.environ["GITHUB_WORKSPACE"]) / "scripts"))
+          from download_historical_candles import prewarm_official_history
+          root = Path(os.environ["BBOT_LOCAL_ROOT"])
+          plan = json.loads((root / ".hosted_candle_plan.json").read_text())
+          rows = prewarm_official_history(plan["symbols"], root, datetime.fromisoformat(plan["start"]), datetime.fromisoformat(plan["end"]), plan["timeframes"])
+          if any(row["state"] == "FAILED" for row in rows):
+              raise SystemExit("Authentic candle coverage incomplete; no trial reserved or rejected")
+      - uses: actions/cache/save@v4
+        if: always() && steps.plan.outcome == 'success'
+        with:
+          path: 'C:/my/bottest/data/candles'
+          key: ${{ steps.plan.outputs.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Run unchanged original bounded roadmap research action
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem Env: | Where-Object { $_.Name -match '^(BINANCE_|AWS_|TELEGRAM_|GH_TOKEN$|GITHUB_TOKEN$|API_KEY$|API_SECRET$)' } | ForEach-Object { Remove-Item "Env:$($_.Name)" }
+          Set-Location $env:BBOT_LOCAL_ROOT
           "BBOT_RESEARCH_STARTED=1" >> $env:GITHUB_ENV
           python strategy_lab/roadmap_manager.py *> $null
           if ($LASTEXITCODE -ne 0) { throw 'Original controller failed; no research PASS claimed' }
@@ -250,6 +341,7 @@ jobs:
           git commit -m 'research: persist encrypted original checkpoint'
           if ($LASTEXITCODE -ne 0) { throw 'Checkpoint commit failed' }
           $auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$env:GH_TOKEN"))
+          Write-Output "::add-mask::$auth"
           git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:refs/heads/research-state
           if ($LASTEXITCODE -ne 0) { throw 'Checkpoint persistence failed' }
 

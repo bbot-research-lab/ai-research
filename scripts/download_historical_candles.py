@@ -11,9 +11,9 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 BASE="https://data.binance.vision/data/futures/um"
-INTERVAL={"1h":"1h","6h":"6h","12h":"12h","1d":"1d","1w":"1w","1M":"1mo"}
+INTERVAL={"30m":"30m","1h":"1h","6h":"6h","12h":"12h","1d":"1d","1w":"1w","1M":"1mo"}
 COLS=["open_time","open","high","low","close","volume","close_time","quote_volume","trades","taker_base","taker_quote","ignore"]
-STEP={"1h":3600,"6h":21600,"12h":43200,"1d":86400,"1w":604800}
+STEP={"30m":1800,"1h":3600,"6h":21600,"12h":43200,"1d":86400,"1w":604800}
 
 def url(symbol,tf,date,monthly=True):
     group="monthly" if monthly else "daily"
@@ -270,3 +270,4 @@ if __name__=="__main__":
         if not(a.symbol and a.tf):p.error("single download requires --symbol and --tf")
         parse=lambda x:datetime.fromisoformat(x).replace(tzinfo=timezone.utc)
         print(download(a.symbol,a.tf,parse(a.start),parse(a.end),a.root))
+

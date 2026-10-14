@@ -71,6 +71,20 @@ class DownloadTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 download_history_plan(p,tmp,["1h"])
 
+    def test_halfhour_boundary_and_missing_bar_rejected(self):
+        import pandas as pd
+        from scripts.download_historical_candles import verify_frame
+        a=datetime(2021,1,1,tzinfo=timezone.utc)
+        b=datetime(2021,1,1,1,30,tzinfo=timezone.utc)
+        times=[int(a.timestamp())+i*1800 for i in range(3)]
+        data=pd.DataFrame({"open_time":times,"open":[1.0]*3,"high":[2.0]*3,
+                           "low":[0.5]*3,"close":[1.5]*3,"volume":[10.0]*3})
+        self.assertEqual(expected_bounds("30m",a,b),(times[0],times[-1]))
+        self.assertEqual(len(verify_frame(data,"30m",a,b)),3)
+        with self.assertRaisesRegex(ValueError,"gaps"):
+            verify_frame(data.drop(index=1),"30m",a,b)
+        self.assertIn("/30m/",url("BTCUSDT","30m",a))
+
     def test_weekly_boundaries_use_monday(self):
         a=datetime(2021,1,4,tzinfo=timezone.utc)
         b=datetime(2021,1,18,tzinfo=timezone.utc)
@@ -78,3 +92,4 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(first,int(a.timestamp()))
         self.assertEqual(last,int(datetime(2021,1,11,tzinfo=timezone.utc).timestamp()))
 if __name__=="__main__":unittest.main()
+
