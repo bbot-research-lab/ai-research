@@ -24,14 +24,18 @@ class RemoteMigrationTests(unittest.TestCase):
             checkout=p/"checkout"
             checkout_frame(remote,"6h",checkout)
             commit_and_push("6h",state,checkout,key,allow_initial_seed=True)
+            original_sha=subprocess.run(["git","-C",str(checkout),"rev-parse","HEAD"],check=True,capture_output=True,text=True).stdout.strip()
             with self.assertRaises(PermissionError):
-                migrate_remote("6h",remote,key)
-            migrated=migrate_remote("6h",remote,key,operator_approved=True)
+                migrate_remote("6h",remote,key,expected_remote_sha=original_sha)
+            with self.assertRaises(RuntimeError):
+                migrate_remote("6h",remote,key,operator_approved=True,expected_remote_sha="0"*40)
+            migrated=migrate_remote("6h",remote,key,operator_approved=True,expected_remote_sha=original_sha)
             self.assertTrue(migrated["migrated"])
             self.assertEqual(migrated["retained_records"],2)
             result=check_remote_state("6h",remote,key)
             self.assertEqual(result["records"],2)
             self.assertEqual(result["hop"],0)
-            self.assertFalse(migrate_remote("6h",remote,key,operator_approved=True)["migrated"])
+            current_sha=subprocess.run(["git","ls-remote",str(remote),"refs/heads/synthetic-frame-state-6h"],check=True,capture_output=True,text=True).stdout.split()[0]
+            self.assertFalse(migrate_remote("6h",remote,key,operator_approved=True,expected_remote_sha=current_sha)["migrated"])
 if __name__=="__main__":
     unittest.main()
