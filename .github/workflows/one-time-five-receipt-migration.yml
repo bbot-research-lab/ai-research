@@ -1,0 +1,45 @@
+name: One-time remaining five synthetic receipt migrations
+on:
+  push:
+    branches: [feature/research-multiframe-foundation-20261014]
+    paths: ['.github/workflows/one-time-five-receipt-migration.yml']
+permissions:
+  contents: write
+jobs:
+  migrate-five:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install cryptography
+      - name: Configure synthetic-only remote credentials
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$BBOT_RESEARCH_STATE_KEY"
+          test "$GITHUB_REPOSITORY" = "bbot-research-lab/ai-research"
+          test "$GITHUB_REF_NAME" = "feature/research-multiframe-foundation-20261014"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          echo "GIT_CONFIG_COUNT=1" >> "$GITHUB_ENV"
+          echo "GIT_CONFIG_KEY_0=http.extraheader" >> "$GITHUB_ENV"
+          echo "GIT_CONFIG_VALUE_0=AUTHORIZATION: basic $auth" >> "$GITHUB_ENV"
+      - name: Migrate 30m checkpoint
+        run: python -m research_addon.migrate_remote_synthetic --frame 30m --remote "https://github.com/${GITHUB_REPOSITORY}.git" --expected-remote-sha f4ce4273fa5d4dfb8bb3912786c8feab1c984c44 --approve-synthetic-migration
+      - name: Migrate 1h checkpoint
+        run: python -m research_addon.migrate_remote_synthetic --frame 1h --remote "https://github.com/${GITHUB_REPOSITORY}.git" --expected-remote-sha bed0ce00cc3e7ad6fb6e7a7657708deba95a435e --approve-synthetic-migration
+      - name: Migrate 12h checkpoint
+        run: python -m research_addon.migrate_remote_synthetic --frame 12h --remote "https://github.com/${GITHUB_REPOSITORY}.git" --expected-remote-sha 0654330fe96db059638aa9fa4f21bf342439985a --approve-synthetic-migration
+      - name: Migrate 1d checkpoint
+        run: python -m research_addon.migrate_remote_synthetic --frame 1d --remote "https://github.com/${GITHUB_REPOSITORY}.git" --expected-remote-sha 65a41f4b48d97ea1b5794f2af3e0bcea5d459128 --approve-synthetic-migration
+      - name: Migrate 1w checkpoint
+        run: python -m research_addon.migrate_remote_synthetic --frame 1w --remote "https://github.com/${GITHUB_REPOSITORY}.git" --expected-remote-sha 84bc679c30790ec73ef5a537d488a73557e06b4c --approve-synthetic-migration

@@ -1,0 +1,122 @@
+name: Multi-frame encrypted persistence smoke (manual, synthetic)
+on:
+  workflow_dispatch:
+    inputs:
+      frame:
+        description: 'Optional one-frame synthetic run'
+        required: false
+        type: choice
+        options: [all, 30m, 1h, 6h, 12h, 1d, 1w]
+        default: all
+      hop:
+        description: 'Bounded synthetic continuation hop (0-48)'
+        required: false
+        type: number
+        default: 0
+  push:
+    branches: [feature/research-multiframe-foundation-20261014]
+    paths: ['.github/workflows/multiframe-persistence-smoke.yml']
+permissions:
+  contents: write
+jobs:
+  synthetic-frame:
+    strategy:
+      fail-fast: false
+      matrix:
+        frame: ${{ fromJSON((inputs.frame == '' || inputs.frame == 'all') && '["30m","1h","6h","12h","1d","1w"]' || format('["{0}"]', inputs.frame)) }}
+    concurrency:
+      group: bbot-synthetic-state-${{ matrix.frame }}
+      cancel-in-progress: false
+    if: ${{ inputs.hop == '' || (inputs.hop >= 0 && inputs.hop <= 48) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FRAME: ${{ matrix.frame }}
+      STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install training-only dependency
+        run: python -m pip install optuna cryptography
+      - name: Check protected checkpoint key
+        shell: bash
+        run: |
+          test -n "$STATE_KEY" || { echo 'Encrypted state key absent'; exit 1; }
+      - name: Fetch independent encrypted frame branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="synthetic-frame-state-${FRAME}"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git -c "http.extraheader=AUTHORIZATION: basic $auth" ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            git worktree add --detach "$RUNNER_TEMP/frame-state" "refs/remotes/origin/$branch"
+          else
+            result=$?
+            if [ "$result" -ne 2 ]; then echo 'Remote lookup failed'; exit 1; fi
+            git worktree add --detach "$RUNNER_TEMP/frame-state" HEAD
+            git -C "$RUNNER_TEMP/frame-state" switch --orphan "initial-frame-state"
+            git -C "$RUNNER_TEMP/frame-state" rm -rf --ignore-unmatch . >/dev/null || true
+            find "$RUNNER_TEMP/frame-state" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          fi
+      - name: Restore authenticated frame before training
+        env:
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          python -m research_addon.frame_checkpoint_cli restore --frame "$FRAME" --root "$RUNNER_TEMP/training" --worktree "$RUNNER_TEMP/frame-state"
+      - name: Enforce authenticated persisted continuation hop
+        env:
+          REQUESTED_HOP: ${{ inputs.hop || 0 }}
+        run: |
+          python -m research_addon.prepare_hosted_hop --frame "$FRAME" --root "$RUNNER_TEMP/training" --hop "$REQUESTED_HOP"
+      - name: Synthetic training (never runs original V3 engine)
+        run: |
+          python -m research_addon.bounded_research_continuation --frame "$FRAME" --root "$RUNNER_TEMP/training" --batches 2
+      - name: Encrypt and stage verified frame state
+        env:
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          python -m research_addon.frame_checkpoint_cli stage --frame "$FRAME" --root "$RUNNER_TEMP/training" --worktree "$RUNNER_TEMP/frame-state"
+      - name: Commit encrypted state to isolated branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="synthetic-frame-state-${FRAME}"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git -C "$RUNNER_TEMP/frame-state" add -- frames/ objects/
+          if ! git -C "$RUNNER_TEMP/frame-state" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/frame-state" commit -m "Checkpoint synthetic frame $FRAME"
+          fi
+          git -C "$RUNNER_TEMP/frame-state" -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$branch"
+
+      - name: Verify mid-job encrypted remote checkpoint (6h synthetic only)
+        if: ${{ matrix.frame == '6h' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          python -m research_addon.hosted_frame_runner \
+            --frame "$FRAME" --root "$RUNNER_TEMP/training" \
+            --worktree "$RUNNER_TEMP/frame-state" \
+            --max-seconds 40 --checkpoint-seconds 2 --grace-seconds 8 \
+            -- bash -c 'python -m research_addon.bounded_research_continuation --frame "$1" --root "$2" --batches 2; sleep 5' \
+            _ "$FRAME" "$RUNNER_TEMP/training"
