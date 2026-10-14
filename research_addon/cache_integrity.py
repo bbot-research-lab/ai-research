@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import struct
 from pathlib import Path
 
 PINNED_ENGINE = "78d38775b8d741de0a57027962b1820eb37d94087771e1358fe24d93ba5a6c9d"
@@ -28,6 +29,13 @@ def verify(root, *, expected_engine=PINNED_ENGINE, expected_cache=PINNED_CACHE):
         last=file.read(4)
     if first != b"PAR1" or last != b"PAR1":
         return {"ok": False, "reason": "PARQUET_MAGIC_INVALID"}
+    if cache.stat().st_size < 12:
+        return {"ok": False, "reason": "PARQUET_FOOTER_INVALID"}
+    with cache.open("rb") as file:
+        file.seek(-8, 2)
+        footer_size = struct.unpack("<I", file.read(4))[0]
+    if footer_size == 0 or footer_size > cache.stat().st_size - 12:
+        return {"ok": False, "reason": "PARQUET_FOOTER_INVALID"}
     return {"ok": True, "reason": "INTEGRITY_ONLY_NOT_DATA_VALIDATION", "cache_bytes": cache.stat().st_size}
 
 if __name__=="__main__":
