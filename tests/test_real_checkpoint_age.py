@@ -38,7 +38,7 @@ class RealTimestampChainTests(unittest.TestCase):
                            check=True,capture_output=True)
             proc=subprocess.run([sys.executable,"-m","research_addon.continue_hosted_chain",
                                  "--frame","6h","--hop","1","--remote",str(remote),
-                                 "--result","success"],env=env,capture_output=True,text=True,timeout=30)
+                                 "--result","success","--previous-run-id","1"],env=env,capture_output=True,text=True,timeout=30)
             self.assertEqual(proc.returncode,0,proc.stderr)
             self.assertIn("CHAIN_STOPPED",proc.stdout)
 
