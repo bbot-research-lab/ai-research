@@ -52,3 +52,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `remote_frame_objects.py` for per-frame AES-GCM checkpoint object identity, local immutable object publication, index-based authenticated restore, and corruption rejection; tested with synthetic SQLite records.
 - This **does not** yet upload data to GitHub, commit remote indexes, ensure central concurrency isolation, chain jobs, or provide long-term remote state. The object path is intentionally transport-independent; plaintext real V3 results must never enter the public branch.
 - Only deploy after testing independent per-frame remote branch/lock semantics, authentication, secret management, crash consistency, quotas, and recovery under actual GitHub Actions.
+
+## Seventh increment — manual encrypted Git remote smoke (not running)
+- `git_frame_checkpoint.py`, `frame_checkpoint_cli.py`: stage and restore frame-bound encrypted snapshots using immutable objects and an authenticated plaintext-free index.
+- `.github/workflows/multiframe-persistence-smoke.yml`: manual-only, six-frame *synthetic* worker matrix; one writer per frame; separate `synthetic-frame-state-<frame>` branches; restore before test; encrypted commit after a completed test. It is deliberately NOT scheduled and not an actual strategy research worker.
+- WARNING: Workflow has not yet been dispatched or validated in an actual remote-restore cycle. The CI unit tests do not prove Git branch race handling, remote credentials, restore after termination, or long-lived retention. The synthetic branch may carry only encrypted training state, NEVER production data.
+- Still missing: official V3 candidate adapter and authorization, persistent ten-minute remote checkpoints during running jobs, long-running chained 5h30 jobs, automatic restart/watchdog, and large-scale research data lifecycle.
