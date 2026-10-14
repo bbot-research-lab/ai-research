@@ -5,6 +5,7 @@ Only the original validator's explicit evidence can support promotion.
 """
 from __future__ import annotations
 import json
+import hashlib
 from pathlib import Path
 
 STAGES=("WF_OOS","SEALED_FUTURE","SHADOW")
@@ -27,8 +28,15 @@ def inspect_evidence(root):
                 outcomes[name]={"state":"NOT_VERIFIED"}
         except (OSError,ValueError,TypeError):
             outcomes[name]={"state":"NOT_VERIFIED"}
+    sources = {}
+    for name in ("strategy_lab/results/roadmap_status_latest.json",
+                 "strategy_lab/results/v3/trial_ledger.json",
+                 "strategy_lab/results/v3/deployment_state.json"):
+        file = root / name
+        sources[name] = {"present": file.is_file(),
+                         "sha256": hashlib.sha256(file.read_bytes()).hexdigest() if file.is_file() else None}
     # A standalone report must never replace original official approval gates.
-    return {"schema":"BBOT_V3_STAGE_OBSERVATION_V1","stages":outcomes,
+    return {"schema":"BBOT_V3_STAGE_OBSERVATION_V1","stages":outcomes,"source_hashes":sources,
             "shadow_approved":False,"live_trading_enabled":False}
 
 def main():
