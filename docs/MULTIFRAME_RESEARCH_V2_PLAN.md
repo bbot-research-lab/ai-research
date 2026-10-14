@@ -118,3 +118,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `bounded_research_continuation.py` to run a finite, capped number of synthetic research batches per frame, stopping immediately on failure; never dispatches additional GitHub workflows, submits live trades or modifies the official V3 backtester.
 - The feature-branch GitHub persistence smoke now executes two consecutive synthetic batches per frame before encrypted remote state commit. This verifies in-job continuation and fingerprint dedup if the hosted workflow succeeds.
 - **Not implemented**: self-restarting across GitHub Actions jobs, 5h30 real research, ten-minute remote mid-job checkpoints, real market data and official V3 adapter. These gates are intentionally not represented as complete.
+
+## Eighteenth increment — fail-closed inter-job continuation gate
+- Seventeenth-increment six-frame hosted synthetic 2-batch workflow passed: run 38549998076.
+- Added `restart_gate.py` and `tests/test_restart_gate.py`: a future inter-job chaining controller may only continue if explicitly enabled, the previous GitHub job succeeded, the remote checkpoint was independently verified, the checkpoint timestamp is fresh, and a strict hop cap has not been exceeded.
+- Does NOT currently dispatch another GitHub Actions run. No scheduled or recursive workflow was enabled, so the original V3 research and R4 remain unaffected. Actual 24-hour autonomous research remains unimplemented.
