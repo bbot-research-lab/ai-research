@@ -9,6 +9,9 @@ on:
       - 'research_addon/formal_cache_schema.py'
       - 'tests/test_formal_cache_schema.py'
       - 'tests/test_parquet_reader.py'
+      - 'tests/**'
+      - 'research_addon/**'
+      - 'scripts/**'
 permissions:
   contents: read
 jobs:
