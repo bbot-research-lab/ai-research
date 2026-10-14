@@ -350,12 +350,6 @@ jobs:
           outcome = json.dumps(controller.get("result", {})).upper()
           if report.get("ok") is not True or controller.get("returncode", 0) != 0 or any(marker in outcome for marker in ("RUNTIME_FAIL", "RUN_STRATEGY_FAIL", "RESULT_NOT_FOUND", "SOURCE_MISSING")):
               raise SystemExit("Original research infrastructure failure; failed state retained; no strategy PASS claimed")
-      - name: Report blind validation and SHADOW evidence (read-only)
-        if: always() && env.BBOT_RESEARCH_STARTED == '1'
-        shell: python
-        run: |
-          import os, runpy
-          runpy.run_path(os.path.join(os.environ["GITHUB_WORKSPACE"],"scripts","report_v3_blind_shadow.py"),run_name="__main__")
       - name: Audit original research pipeline functions and persistence (read-only)
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         shell: python
@@ -374,6 +368,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Original SHADOW engine self-test failed; no SHADOW PASS claimed' }
           python strategy_lab/v3_shadow_engine.py --once
           if ($LASTEXITCODE -ne 0) { throw 'Original SHADOW simulation failed; preserve existing research checkpoint' }
+      - name: Report blind validation and SHADOW evidence (read-only)
+        if: always() && env.BBOT_RESEARCH_STARTED == '1'
+        shell: python
+        run: |
+          import os, runpy
+          runpy.run_path(os.path.join(os.environ["GITHUB_WORKSPACE"],"scripts","report_v3_blind_shadow.py"),run_name="__main__")
       - name: Save encrypted original checkpoint for next hosted run
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         env:
