@@ -1,6 +1,7 @@
 """Research-only candidate search. Never imports live trading code.
 Caller passes a TRAINING objective; sealed/OOS approval must be separate.
 """
+import math
 import random
 from dataclasses import dataclass
 
@@ -31,7 +32,10 @@ def genetic_candidates(bounds, objective, *, seed=42, population=16, generations
         for m in members:
             sig = tuple((k, round(m[k], 12)) for k in keys)
             if sig not in seen:
-                seen[sig] = {"params": dict(m), "train_score": float(objective(dict(m)))}
+                score = float(objective(dict(m)))
+                if not math.isfinite(score):
+                    raise ValueError("nonfinite training score")
+                seen[sig] = {"params": dict(m), "train_score": score}
             scored.append(seen[sig])
         scored.sort(key=lambda x: x["train_score"], reverse=True)
         elite = [x["params"] for x in scored[:max(2, population // 4)]]
@@ -46,7 +50,10 @@ def optuna_candidates(bounds, objective, *, seed=42, trials=40):
     import optuna
     study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=seed))
     def evaluate(trial):
-        return float(objective({k: trial.suggest_float(k, b.low, b.high) for k, b in sorted(bounds.items())}))
+        score = float(objective({k: trial.suggest_float(k, b.low, b.high) for k, b in sorted(bounds.items())}))
+        if not math.isfinite(score):
+            raise ValueError("nonfinite training score")
+        return score
     study.optimize(evaluate, n_trials=trials, n_jobs=1)
     return [{"params": dict(t.params), "train_score": t.value}
             for t in sorted(study.trials, key=lambda t: t.value if t.value is not None else float("-inf"), reverse=True)
