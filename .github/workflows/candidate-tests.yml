@@ -17,8 +17,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install isolated research test requirements
+        run: python -m pip install --disable-pip-version-check -r requirements-research-ci.txt
       - run: python -m unittest discover -s tests -v
       - name: Optuna import check
         run: |
-          python -m pip install 'optuna>=4,<5'
           python -c "from research_addon.candidate_search import optuna_candidates, Range; x=optuna_candidates({'p': Range(0,1)}, lambda z: -(z['p']-.5)**2, trials=3); assert len(x)==3"
