@@ -49,12 +49,13 @@ def main():
         index=json.loads(index_path.read_text(encoding="utf-8"))
         if index["frame"] != args.frame or not (worktree/"objects"/(index["object"]+".enc")).is_file():
             raise RuntimeError("invalid remote frame checkpoint index")
-    # Use the actual remote commit timestamp, never a synthesized current time.
-    import subprocess
-    stamp=subprocess.run(["git","-C",str(worktree),"show","-s","--format=%cI","HEAD"],
-                         capture_output=True,text=True,check=True).stdout.strip()
-    if not stamp:
-        raise RuntimeError("missing remote checkpoint commit timestamp")
+        # Capture the real remote commit time while the temporary checkout exists.
+        import subprocess
+        stamp=subprocess.run(["git","-C",str(worktree),"show","-s","--format=%cI","HEAD"],
+                             capture_output=True,text=True,check=True).stdout.strip()
+        if not stamp:
+            raise RuntimeError("missing remote checkpoint commit timestamp")
+
     hop=dispatch_next(frame=args.frame,job_result=args.result,
                       checkpoint_verified=True,enabled=True,
                       completed_hops=args.hop,last_checkpoint_at=stamp,
