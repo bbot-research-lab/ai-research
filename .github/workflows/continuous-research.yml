@@ -336,7 +336,18 @@ jobs:
           # stage transitions and official grading. This is not a PASS loop.
           $cycles = 24
           $ledgerPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/v3/trial_ledger.json'
-          $initialCount = if (Test-Path $ledgerPath) { @((Get-Content -Raw -Encoding UTF8 $ledgerPath | ConvertFrom-Json).entries).Count } else { 0 }
+          if (-not (Test-Path $ledgerPath)) { throw 'Original trial ledger missing after checkpoint restore; refusing fresh research' }
+          $initialCount = @((Get-Content -Raw -Encoding UTF8 $ledgerPath | ConvertFrom-Json).entries).Count
+          $beforePath = Join-Path $env:BBOT_LOCAL_ROOT '.hosted_before.json'
+          if (-not (Test-Path $beforePath)) { throw 'Original resume baseline missing; refusing fresh research' }
+          $before = Get-Content -Raw -Encoding UTF8 $beforePath | ConvertFrom-Json
+          $lastTrial = [int]$before.counter
+          $ledger = Get-Content -Raw -Encoding UTF8 $ledgerPath | ConvertFrom-Json
+          $highestTrial = @($ledger.entries | ForEach-Object { [int]$_.v3_trial } | Measure-Object -Maximum)[0].Maximum
+          if ($initialCount -le 0 -or $lastTrial -lt 1 -or $highestTrial -ne $lastTrial) {
+            throw "Research checkpoint identity mismatch: entries=$initialCount, prior_counter=$lastTrial, ledger_max=$highestTrial"
+          }
+          Write-Output "ORIGINAL_V3_RESUME_VERIFIED=1; PREVIOUS_TRIAL_RECORDS=$initialCount; LAST_TRIAL=$lastTrial"
           for ($cycle = 1; $cycle -le $cycles; $cycle++) {
             Write-Output "ORIGINAL_V3_CYCLE_START=$cycle/$cycles"
             python strategy_lab/roadmap_manager.py *> $null
