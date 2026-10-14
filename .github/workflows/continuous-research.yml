@@ -341,10 +341,17 @@ jobs:
             if (-not (Test-Path $statusPath)) { throw "Missing original controller result at cycle $cycle" }
             $status = Get-Content -Raw -Encoding UTF8 $statusPath | ConvertFrom-Json
             if ($status.ok -ne $true) { throw "Original controller reported failure at cycle $cycle" }
-            $action = [string]$status.controller_result.action
-            Write-Output "ORIGINAL_V3_CYCLE_FINISHED=$cycle; ACTION=$action"
-            if ($action -in @('NO_NEW_BOUNDED_INPUT','NO_NEW_RESEARCH_BACKLOG')) {
-              Write-Output 'ORIGINAL_V3_QUEUE_EMPTY'
+            $controller = $status.controller_result
+            if ($null -eq $controller) { throw "Missing original controller response at cycle $cycle" }
+            if ($controller.returncode -ne 0) { throw "Original controller nonzero returncode at cycle $cycle" }
+            $action = [string]$controller.action
+            $inner = $controller.result
+            $innerStatus = if ($null -ne $inner) { [string]$inner.status } else { '' }
+            $innerAction = if ($null -ne $inner) { [string]$inner.action } else { '' }
+            Write-Output "ORIGINAL_V3_CYCLE_FINISHED=$cycle; ACTION=$action; STAGE_STATUS=$innerStatus; STAGE_ACTION=$innerAction"
+            if ($action -in @('GOVERNANCE_BLOCK','SKIP')) { throw "Original V3 governance or lock block: $action" }
+            if ($action -eq 'NO_NEW_BOUNDED_INPUT' -or $innerStatus -in @('NO_NEW_RESEARCH_BACKLOG','NO_WORK_FOR_SELECTED_BUCKET')) {
+              Write-Output 'ORIGINAL_V3_NO_MORE_BOUNDED_WORK'
               break
             }
           }
