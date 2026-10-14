@@ -72,10 +72,10 @@ jobs:
       matrix:
         frame: ${{ fromJSON(inputs.frame != '' && inputs.frame != 'ALL' && format('["{0}"]', inputs.frame) || '["30M","1H","6H","12H","1D","1W"]')
           }}
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 350
     env:
-      BBOT_LOCAL_ROOT: /tmp/bbot
+      BBOT_LOCAL_ROOT: C:/my/bottest
       BBOT_RESEARCH_TIMEFRAME: ${{ matrix.frame }}
     steps:
       - uses: actions/checkout@v4
@@ -150,7 +150,7 @@ jobs:
               output.write("cache_prefix=bbot-candles-"+hashlib.sha256(cache_path.read_bytes()).hexdigest()[:16]+"-"+frame+"-\n")
       - uses: actions/cache/restore@v4
         with:
-          path: ${{ env.BBOT_LOCAL_ROOT }}/data/candles
+          path: C:/my/bottest/data/candles
           key: ${{ steps.plan.outputs.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ${{ steps.plan.outputs.cache_prefix }}
       - name: Recover and validate authentic public candles before reserving a trial
@@ -172,7 +172,7 @@ jobs:
       - uses: actions/cache/save@v4
         if: always() && steps.plan.outcome == 'success'
         with:
-          path: ${{ env.BBOT_LOCAL_ROOT }}/data/candles
+          path: C:/my/bottest/data/candles
           key: ${{ steps.plan.outputs.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
     concurrency:
       group: original-data-${{ matrix.frame }}
@@ -194,7 +194,7 @@ jobs:
       contents: write
       actions: write
     env:
-      BBOT_LOCAL_ROOT: C:\my\bottest
+      BBOT_LOCAL_ROOT: C:/my/bottest
       BBOT_RESEARCH_TIMEFRAME: ${{ matrix.frame }}
       BBOT_STATE_BRANCH: research-state-${{ matrix.frame }}
       BBOT_DEVELOP_BASIC_STRATEGIES: '1'
@@ -410,7 +410,7 @@ jobs:
               output.write("cache_prefix=bbot-candles-"+hashlib.sha256(cache_path.read_bytes()).hexdigest()[:16]+"-"+frame+"-\n")
       - uses: actions/cache/restore@v4
         with:
-          path: ${{ env.BBOT_LOCAL_ROOT }}/data/candles
+          path: C:/my/bottest/data/candles
           key: ${{ steps.plan.outputs.cache_key }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ${{ steps.plan.outputs.cache_prefix }}
       - name: Recover and validate authentic public candles before reserving a trial
