@@ -58,3 +58,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - `.github/workflows/multiframe-persistence-smoke.yml`: manual-only, six-frame *synthetic* worker matrix; one writer per frame; separate `synthetic-frame-state-<frame>` branches; restore before test; encrypted commit after a completed test. It is deliberately NOT scheduled and not an actual strategy research worker.
 - WARNING: Workflow has not yet been dispatched or validated in an actual remote-restore cycle. The CI unit tests do not prove Git branch race handling, remote credentials, restore after termination, or long-lived retention. The synthetic branch may carry only encrypted training state, NEVER production data.
 - Still missing: official V3 candidate adapter and authorization, persistent ten-minute remote checkpoints during running jobs, long-running chained 5h30 jobs, automatic restart/watchdog, and large-scale research data lifecycle.
+
+## Eighth increment — commit boundary and local Git recovery
+- Added `frame_git_sync.py` to snapshot a frame SQLite ledger consistently, encrypt the checkpoint, stage encrypted immutable objects, and make a Git commit. No remote push from this helper.
+- Added `tests/test_frame_git_sync.py`: local isolated Git roundtrip verifies encrypted object commit and checkpoint restoration; missing frame ledger fails closed.
+- The manual-only six-frame remote persistence smoke was previously added but has **not been dispatched**. No actual GitHub remote state continuation, 10-minute remote checkpoint, unattended restart, official V3 parallel runner, or permanent storage is confirmed.
+- Do not deploy real strategy material to synthetic-state branches. Existing original research `main` workflows and R4 are unchanged.
