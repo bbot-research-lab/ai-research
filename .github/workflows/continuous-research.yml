@@ -182,7 +182,7 @@ jobs:
     needs:
       - inputs
       - data
-    if: always() && needs.inputs.outputs.ready == 'true'
+    if: '!cancelled() && needs.inputs.outputs.ready == ''true'''
     strategy:
       fail-fast: false
       matrix:
