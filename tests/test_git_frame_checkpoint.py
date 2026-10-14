@@ -19,6 +19,9 @@ class GitFrameCheckpointTests(unittest.TestCase):
                           spec={"candidate": 1}, outcome={"reason": "synthetic"})
             snapshot(p / "live", p / "snapshot")
             stage_frame("6h", p / "snapshot", KEY, p / "git")
+            repeated = stage_frame("6h", p / "snapshot", KEY, p / "git")
+            self.assertEqual(repeated["object"], index["object"])
+            self.assertEqual(len(list((p / "git/objects").glob("*.enc"))), 1)
             self.assertTrue(restore_frame("6h", KEY, p / "git", p / "copy"))
             with ExperimentLedger(p / "copy/training_ledger.sqlite3") as db:
                 self.assertEqual(db.get("candidate")["status"], "FAILED")
