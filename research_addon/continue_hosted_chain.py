@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from .dispatch_next_research import dispatch_next
+from .verified_previous_run import verify_predecessor
 from .frame_remote_git import checkout_frame
 from .git_frame_checkpoint import restore_frame
 from .frame_snapshot import verify_snapshot
@@ -23,6 +24,7 @@ def main():
     parser.add_argument("--hop",type=int,required=True)
     parser.add_argument("--remote",required=True)
     parser.add_argument("--result",choices=("success","failure"),required=True)
+    parser.add_argument("--previous-run-id",type=int,required=True)
     args=parser.parse_args()
     allowed=os.environ.get("BBOT_SYNTHETIC_CHAIN_ENABLED")=="true"
     if not allowed:
@@ -30,6 +32,9 @@ def main():
         return 0
     key=os.environ["BBOT_RESEARCH_STATE_KEY"]
     token=os.environ["GH_TOKEN"]
+    if args.result != "success":
+        raise RuntimeError("previous job was not successful")
+    verify_predecessor(args.previous_run_id,token)
     with TemporaryDirectory() as temp:
         worktree=Path(temp)/"remote"
         if not checkout_frame(args.remote,args.frame,worktree):
