@@ -1,0 +1,56 @@
+name: Synthetic frame receipt migration (manual only)
+on:
+  workflow_dispatch:
+    inputs:
+      frame:
+        description: 'One synthetic frame, never production state'
+        required: true
+        type: choice
+        options: [30m, 1h, 6h, 12h, 1d, 1w]
+      approve:
+        description: 'Must equal MIGRATE_SYNTHETIC_ONLY'
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  migrate:
+    if: ${{ inputs.approve == 'MIGRATE_SYNTHETIC_ONLY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: bbot-synthetic-state-${{ inputs.frame }}
+      cancel-in-progress: false
+    env:
+      FRAME: ${{ inputs.frame }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install encryption library
+        run: python -m pip install cryptography
+      - name: Refuse missing encryption key
+        env:
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          test -n "$BBOT_RESEARCH_STATE_KEY"
+      - name: Migrate approved synthetic checkpoint (existing branch only)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python -m research_addon.migrate_remote_synthetic \
+            --frame "$FRAME" --remote "https://github.com/${GITHUB_REPOSITORY}.git" \
+            --approve-synthetic-migration
