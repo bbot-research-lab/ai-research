@@ -6,6 +6,7 @@ Run only on an isolated local machine with pandas/numpy/pyarrow installed.
 from __future__ import annotations
 import argparse
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -51,6 +52,11 @@ def stage(upload_zip, missing_zip, modules_zip, root):
             target=root/rel
             target.parent.mkdir(parents=True,exist_ok=True)
             target.write_bytes(blob)
+    settings=json.loads((root/"strategy_lab/lab_config.json").read_text(encoding="utf-8-sig"))
+    if not isinstance(settings,dict) or settings.get("auto_deploy") is not False:
+        raise ValueError("refusing replay: original config must explicitly disable auto_deploy")
+    if settings.get("mode") != "EXACT_SIGNAL_CACHE":
+        raise ValueError("refusing replay: unexpected original research mode")
     return root
 
 def main():
