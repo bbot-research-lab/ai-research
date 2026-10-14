@@ -87,3 +87,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `frame_remote_git.py` to create a synthetic per-frame remote branch only with explicit initial-seed authorization, push encrypted frame checkpoint and independently refetch it before claiming durability.
 - Added `tests/test_frame_remote_git.py` to check a local bare-Git remote through two consecutive runs, an initial reset guard, failure/success trial retention and restoration. Tests are synthetic and do not run real trading strategies.
 - This is NOT yet an authenticated GitHub-hosted remote experiment, nor a 10-minute remote checkpoint, 5h30 automatic chain or integration into unchanged official V3. The manual workflow on feature branch has not been dispatched; the original production research schedule stays unchanged.
+
+## Thirteenth increment — byte-exact remote checkpoint verification
+- Confirmed twelfth-increment CI passed: run 38548795619.
+- After an encrypted Git push, `frame_remote_git.py` now refetches the state from the remote branch, decrypts it, and compares SHA-256 and byte lengths of every persisted file against the source SQLite-consistent snapshot; valid but stale ciphertext is no longer treated as evidence of successful persistence.
+- The remote Git regression test now covers a third unchanged-state publish/restore and validates both failed and successful experiment records remain intact. These tests use a local bare Git remote, not live GitHub.
+- Next mandatory gate: manually dispatch and re-run the GitHub-hosted synthetic encrypted persistence workflow from an eligible registered workflow branch, without promoting to production. Existing V3 scheduled workflow and R4 remain unchanged.
