@@ -7,7 +7,8 @@ from scripts.strategy_static_audit import inspect_ast,audit
 
 class AuditTests(unittest.TestCase):
     def test_embedded_exec_is_detected(self):
-        s="_SRC='import subprocess\\nsubprocess.run([\\\"x\\\"])'\\nexec(compile(_SRC,'<x>','exec'))"
+        payload = "import subprocess\nsubprocess.run(['x'])"
+        s = "_SRC = " + repr(payload) + "\nexec(compile(_SRC, '<x>', 'exec'))"
         flags=inspect_ast(ast.parse(s))
         self.assertIn("DYNAMIC_EXECUTION:exec",flags)
         self.assertTrue(any("EMBEDDED_NETWORK_OR_PROCESS_IMPORT:subprocess" == x for x in flags))
