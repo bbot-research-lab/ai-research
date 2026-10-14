@@ -356,6 +356,12 @@ jobs:
         run: |
           import os, runpy
           runpy.run_path(os.path.join(os.environ["GITHUB_WORKSPACE"],"scripts","report_v3_blind_shadow.py"),run_name="__main__")
+      - name: Audit original research pipeline functions and persistence (read-only)
+        if: always() && env.BBOT_RESEARCH_STARTED == '1'
+        shell: python
+        run: |
+          import os, runpy
+          runpy.run_path(os.path.join(os.environ["GITHUB_WORKSPACE"],"scripts","audit_original_research_pipeline.py"),run_name="__main__")
       - name: Save encrypted original checkpoint for next hosted run
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         env:
