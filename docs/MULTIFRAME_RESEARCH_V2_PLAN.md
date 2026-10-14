@@ -180,3 +180,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `completion_listener.py`: injectable, default-off coordination for completed approved GitHub workflow events, real predecessor verification, per-frame job step verification and a separately authenticated checkpoint state check before requesting a bounded next dispatch.
 - Added `tests/test_completion_listener.py` for default-off, per-frame filtering and failed remote state refusal.
 - Deliberately NOT deployed as a default-branch `workflow_run` listener. No trustworthy `state_checker` integration exists yet; trying to enable the entrypoint raises a hard error rather than pretending it can verify remote states. No autonomous chaining or actual V3/market research is active. Production R4 and existing research workflow unchanged.
+
+## Twenty-ninth increment — authenticated remote state checker
+- Added `remote_state_checker.py` for read-only independent Git remote refetch, frame-bound AES authenticated restore, retained experiment-ledger count and actual remote commit timestamp verification, with a local bare-Git test.
+- This checker does NOT yet supply an authenticated continuation hop counter. The completion listener still requires a separately verified `hop` value and is not wired into any default-branch listener; no unattended dispatch can occur.
+- Twenty-eighth-increment CI was still running at the beginning of this increment. Main production research and EC2 R4 unchanged.
