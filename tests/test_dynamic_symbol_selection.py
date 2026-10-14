@@ -14,9 +14,8 @@ class ProductionParityTests(unittest.TestCase):
                          DEFAULT_FIXED+self.dynamic[:20])
     def test_fixed_override_from_production_config(self):
         cfg=dict(self.cfg,FIXED_SYMBOLS=["BTCUSDT","ETHUSDT"])
-        selected=from_official_state(cfg,self.state)
-        self.assertEqual(selected[:2],["BTCUSDT","ETHUSDT"])
-        self.assertEqual(len(selected),27)
+        with self.assertRaises(ValueError):
+            from_official_state(cfg,self.state)  # 2 + 25 < 30, no invented fill
     def test_no_fabricated_fills(self):
         with self.assertRaises(ValueError):
             from_official_state(self.cfg,{"_meta":{"final_dynamic":[]}})
