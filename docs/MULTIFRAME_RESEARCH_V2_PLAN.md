@@ -219,3 +219,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - The 34th-phase six-frame read-only GitHub audit passed (Actions run 38552976998), confirming 31 synthetic records and legacy format per frame.
 - Changed `migrate_remote_synthetic.py` to demand an explicitly approved exact 40-digit remote Git commit SHA, checked against the current branch HEAD *before any mutation*. Mismatches fail closed to avoid publishing migration over newer experiments. Manual migration workflow now requires this approved SHA as an input. Unit regression tests cover mismatched SHA and idempotent migration with the refreshed remote head.
 - Actual remote GitHub state branches have **not been migrated**, and the new migration workflow is not default-branch registered. Production workflows and R4 unchanged.
+
+## Thirty-sixth increment — byte-identical SQLite migration gate
+- Thirty-fifth-increment Research CI succeeded, run 38553192017.
+- Strengthened `migrate_remote_synthetic.py`: records SHA-256 of the original restored experiment-ledger SQLite file, checks that local migration does not change those bytes before publication, and compares SHA-256 of the independently restored GitHub checkpoint with the original. Count-only validation remains in addition; a change with equal record counts can no longer silently pass.
+- Added an end-to-end original-versus-migrated SQLite checksum assertion to the bare-Git remote test. The new code is committed on feature branch, not deployed to main or remote synthetic state branches. Official V3 24/7 research not yet active.
