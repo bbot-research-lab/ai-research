@@ -1,0 +1,63 @@
+name: Public futures candle cache - isolated (35 historic symbols)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/history-cache.yml'
+permissions:
+  contents: read
+concurrency:
+  group: historical-candles-2026-10-01
+  cancel-in-progress: false
+jobs:
+  candle-archive:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 01
+            symbols: 'AAVEUSDT ADAUSDT APTUSDT ARBUSDT AVAXUSDT'
+          - shard: 02
+            symbols: 'AXSUSDT BNBUSDT BTCUSDT DASHUSDT DOGEUSDT'
+          - shard: 03
+            symbols: 'DOTUSDT ETHUSDT FARTCOINUSDT FETUSDT FILUSDT'
+          - shard: 04
+            symbols: 'JTOUSDT LDOUSDT LINKUSDT LTCUSDT NEARUSDT'
+          - shard: 05
+            symbols: 'ONDOUSDT ORCAUSDT PAXGUSDT RUNEUSDT SOLUSDT'
+          - shard: 06
+            symbols: 'SUIUSDT TAOUSDT TRUMPUSDT TRXUSDT UNIUSDT'
+          - shard: 07
+            symbols: 'VIRTUALUSDT WLDUSDT XLMUSDT XRPUSDT ZECUSDT'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-research-ci.txt
+      - name: Prepare public-market-data dependencies only
+        run: python -m pip install --disable-pip-version-check 'pandas>=2.2,<3' 'pyarrow>=17,<22' 'requests>=2.31,<3'
+      - name: Fetch and checksum full archived UTC months
+        run: |
+          python scripts/download_historical_candles.py \
+            --prewarm-symbols ${{ matrix.symbols }} \
+            --timeframes 1h 6h 12h 1d 1w 1M \
+            --start 2020-01-01 --end 2026-10-01 \
+            --root candle-store
+      - name: Retain verified candles and any failure manifest (private Actions artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bbot-historical-candles-${{ matrix.shard }}
+          path: candle-store/
+          retention-days: 90
+          if-no-files-found: warn
+          compression-level: 2
+      - name: State trading prohibition
+        if: always()
+        run: |
+          echo 'Public OHLCV only. No account data, strategy scoring, AWS R4, trade calls or deployment.'
+          echo 'An artifact is not official WF/OOS/blind approval.'
