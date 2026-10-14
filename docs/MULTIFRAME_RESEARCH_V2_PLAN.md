@@ -197,3 +197,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `migrate_legacy_frame.py` and tests: requires explicit operator approval and an existing SQLite research ledger, retains both FAILED and COMPLETED experiments, adds a bounded hop-zero receipt, and refuses to quietly reset an absent ledger. A previously migrated state is left unchanged.
 - Only local, opt-in legacy migration code is implemented; **not** yet run against remote GitHub frame-state branches. To persist the migrated receipt, a controlled authenticated checkpoint publication must happen in a later step, with frame writers stopped and separate backups preserved.
 - No automatic dispatch, production V3 workflow modification or EC2 R4 changes.
+
+## Thirty-second increment — remote synthetic migration with roundtrip validation
+- Thirty-first increment Research CI passed: run 38552499354.
+- Added `migrate_remote_synthetic.py` to read a preexisting encrypted per-frame Git remote state, preserve all SQLite experiments, require explicit operator approval to add a hop-zero receipt, commit a new content-addressed encrypted checkpoint, and independently refetch/decrypt/validate the new remote state. No remote branch is created when the source checkpoint is absent.
+- Added a local bare-remote end-to-end regression verifying FAILED and COMPLETED records survive and repeated migration does not rewrite an already-migrated checkpoint.
+- **Not yet run against the six GitHub-hosted synthetic state branches.** The current feature-branch workflow has no migration job and the migration helper is explicitly approval-gated. CI validation of this increment is pending. Main research and EC2 R4 unchanged.
