@@ -10,6 +10,10 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(a, b)
         self.assertTrue(all(0 <= x["params"]["a"] <= 1 for x in a))
         self.assertTrue(all(-2 <= x["params"]["b"] <= 2 for x in a))
+    def test_nonfinite_score_rejected(self):
+        with self.assertRaises(ValueError):
+            genetic_candidates({"a": Range(0, 1)}, lambda _: float('nan'), generations=1)
+
     def test_invalid_bounds(self):
         with self.assertRaises(ValueError):
             genetic_candidates({}, lambda _: 0)
