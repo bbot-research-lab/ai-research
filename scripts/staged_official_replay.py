@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -68,9 +69,13 @@ def main():
     p.add_argument("--timeout",type=int,default=900)
     p.add_argument("--execute",action="store_true",help="Opt in to full original research backtest")
     p.add_argument("--output-dir",type=Path,help="Private directory for retained official result JSON")
+    p.add_argument("--auto-download-candles",action="store_true",help="Fetch missing original candles from public Binance USD-M archive")
+    p.add_argument("--candle-store",type=Path,help="Persist downloaded candles privately across reruns")
     args=p.parse_args()
     if args.timeout<1 or args.timeout>21600: p.error("timeout must be 1..21600")
     if args.execute and args.output_dir is None: p.error("--execute requires --output-dir; otherwise reports are deleted")
+    if args.auto_download_candles and (not args.execute or not args.candle_store):
+        p.error("--auto-download-candles requires --execute and --candle-store")
     with tempfile.TemporaryDirectory(prefix="bbot_original_isolated_") as temp:
         root=stage(args.original_research_zip,args.engine_cache_zip,args.material_modules_zip,temp)
         print("Original input hashes verified; all official material modules staged.")
@@ -90,8 +95,45 @@ def main():
         runner=root/"strategy_lab/run_strategy.py"
         strategy=root/"strategy_lab/strategies/CURRENT_PRODUCTION.py"
         print("Executing official runner in temp directory; no original source patches.")
-        result=subprocess.run([sys.executable,str(runner),str(strategy)],cwd=root,
-                              env=env,timeout=args.timeout,check=False)
+        downloaded=set()
+        if args.auto_download_candles:
+            import shutil
+            store=args.candle_store.expanduser().resolve()
+            store.mkdir(parents=True,exist_ok=True)
+            for previous in store.glob("*/*.parquet"):
+                target=root/"data"/"candles"/previous.parent.name/previous.name
+                target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(previous,target)
+        for attempt in range(300 if args.auto_download_candles else 1):
+            result=subprocess.run([sys.executable,str(runner),str(strategy)],cwd=root,
+                                  env=env,timeout=args.timeout,check=False,capture_output=True,text=True,errors="replace")
+            print(result.stdout[-15000:])
+            if result.returncode==0:
+                break
+            if not args.auto_download_candles:
+                print(result.stderr[-10000:]);break
+            pattern=r"(1h|6h|12h|1d|1w|monthly) parquet missing for ([A-Z0-9]+)"
+            match=re.search(pattern,result.stderr)
+            if not match:
+                print(result.stderr[-10000:]);break
+            tf,symbol=match.groups()
+            tf="1M" if tf=="monthly" else tf
+            if (symbol,tf) in downloaded:
+                raise RuntimeError("historical downloader did not resolve "+symbol+" "+tf)
+            downloaded.add((symbol,tf))
+            from scripts.download_historical_candles import download
+            from datetime import datetime,timezone
+            start=datetime(2020,1,1,tzinfo=timezone.utc)
+            end=datetime(2026,8,21,tzinfo=timezone.utc)
+            print("DOWNLOADING AUTHENTIC HISTORICAL CANDLES:",symbol,tf,flush=True)
+            report=download(symbol,tf,start,end,args.candle_store)
+            source=Path(report["path"])
+            target=root/"data"/"candles"/symbol/source.name
+            target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(source,target)
+            print("HISTORICAL CANDLES READY:",report,flush=True)
+        else:
+            raise RuntimeError("more than 300 missing candles; refusing unbounded retries")
         reports=list((root/"strategy_lab/results").glob("*.json"))
         if result.returncode==0 and not reports:
             print("ERROR: original runner returned 0 but created no result JSON")
