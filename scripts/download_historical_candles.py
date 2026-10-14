@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 BASE="https://data.binance.vision/data/futures/um"
 INTERVAL={"1h":"1h","6h":"6h","12h":"12h","1d":"1d","1w":"1w","1M":"1mo"}
@@ -175,15 +177,92 @@ def download(symbol,tf,start,end,root,session=None):
     df.to_parquet(target,index=False)
     return {"path":str(target),"rows":len(df),"first_ts":int(df.open_time.iloc[0]),"last_ts":int(df.open_time.iloc[-1])}
 
+
+# ------------------------ Historic archive prewarming ------------------------
+def prewarm_official_history(symbols,root,start,end,timeframes,session=None):
+    """Cache real public market data privately; record every unresolved gap.
+
+    Binance archives may have no data before a symbol's first listing.
+    The first verified monthly CSV establishes the earliest available bar;
+    a missing month AFTER that first archive is never skipped or fabricated.
+    This is data acquisition, not an official historical approval.
+    """
+    if not symbols or len(symbols)!=len(set(symbols)):
+        raise ValueError("nonempty unique symbol list required")
+    if not timeframes or any(tf not in INTERVAL for tf in timeframes):
+        raise ValueError("unsupported historic intervals")
+    start=start.astimezone(timezone.utc)
+    end=end.astimezone(timezone.utc)
+    if start>=end or end>datetime.now(timezone.utc):
+        raise ValueError("invalid archive UTC dates")
+    root=Path(root)
+    root.mkdir(parents=True,exist_ok=True)
+    source=session
+    if source is None:
+        source=requests.Session()
+        policy=Retry(total=4,backoff_factor=1,status_forcelist=[429,500,502,503,504])
+        source.mount("https://",HTTPAdapter(max_retries=policy,pool_maxsize=6))
+    results=[]
+    for symbol in symbols:
+        if not isinstance(symbol,str) or not re.fullmatch("[A-Z0-9]{4,30}",symbol):
+            raise ValueError("invalid archive symbol")
+        for tf in timeframes:
+            path=root/"data"/"candles"/symbol/(tf+".parquet")
+            item={"symbol":symbol,"tf":tf,"state":"FAILED"}
+            try:
+                if path.exists():
+                    cached=pd.read_parquet(path)
+                    verify_frame(cached,tf,datetime.fromtimestamp(int(cached.open_time.iloc[0]),timezone.utc),end)
+                    info={"path":str(path),"rows":len(cached),
+                          "first_ts":int(cached.open_time.iloc[0]),"last_ts":int(cached.open_time.iloc[-1])}
+                    item["state"]="REUSED"
+                else:
+                    first_month=start.replace(day=1,hour=0,minute=0,second=0,microsecond=0)
+                    initial=None
+                    while first_month<end:
+                        frame=fetch(source,url(symbol,INTERVAL[tf],first_month))
+                        if frame is not None and not frame.empty:
+                            stamp=int(frame.open_time.iloc[0])
+                            if stamp>10**14:stamp//=1000
+                            if stamp>10**11:stamp//=1000
+                            initial=datetime.fromtimestamp(max(int(start.timestamp()),stamp),tz=timezone.utc)
+                            break
+                        first_month=(first_month.replace(day=28)+timedelta(days=4)).replace(day=1)
+                    if initial is None:
+                        raise ValueError("no historical monthly archive found")
+                    info=download(symbol,tf,initial,end,root,session=source)
+                    item["state"]="VERIFIED"
+                item.update(info)
+                item["sha256"]=hashlib.sha256(Path(info["path"]).read_bytes()).hexdigest()
+            except Exception as exc:
+                item["error"]=str(exc)
+            results.append(item)
+            print("ARCHIVE",symbol,tf,item["state"],item.get("rows"),item.get("error",""),flush=True)
+            # Keep a resumable audit manifest even if a later symbol cannot be read.
+            manifest=root/"history_manifest.json"
+            manifest.write_text(json.dumps({
+                "source":"Binance public USD-M futures archive; SHA-256 verified",
+                "requested_start":start.isoformat(),"requested_end":end.isoformat(),
+                "not_official_backtest":True,"promotion_allowed":False,
+                "results":results,
+            },indent=2)+"\n",encoding="utf-8")
+    return results
+
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     p.add_argument("--symbol");p.add_argument("--tf",choices=list(INTERVAL))
+    p.add_argument("--prewarm-symbols",nargs="+",help="verified public-market symbols for a private candle cache")
     p.add_argument("--start",default="2020-01-01");p.add_argument("--end",default="2026-08-21")
     p.add_argument("--history-plan",type=Path,help="Dated selection plan from dynamic_symbol_selection.py")
     p.add_argument("--timeframes",nargs="+",choices=list(INTERVAL),default=["1h","6h","12h","1d","1w","1M"])
     p.add_argument("--root",required=True)
     a=p.parse_args()
-    if a.history_plan:
+    if a.prewarm_symbols:
+        if a.history_plan or a.symbol or a.tf:p.error("prewarm uses --prewarm-symbols, --timeframes, --start, --end, --root")
+        def utc_date(value):return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+        summary=prewarm_official_history(a.prewarm_symbols,a.root,utc_date(a.start),utc_date(a.end),a.timeframes)
+        if any(x["state"]=="FAILED" for x in summary):raise SystemExit(2)
+    elif a.history_plan:
         if a.symbol or a.tf:p.error("history plan cannot be combined with single symbol options")
         for item in download_history_plan(a.history_plan,a.root,a.timeframes):
             print(item)
