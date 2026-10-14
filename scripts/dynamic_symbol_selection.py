@@ -1,59 +1,64 @@
-"""Automatic current Binance USD-M research universe (NOT historical point-in-time selection).
+"""B-BOT research universe from the production symbol selector's recorded state.
 
-For contemporary exploratory research only. Never use today's rankings to
-select a historical WF/SEALED universe; use original historical snapshots.
-No credentials, account access, orders, or promotion.
+This deliberately does not invent a ranking algorithm. Production symbol.py
+owns scoring, filters, membership, and rotation. Research caps its recorded
+ordered output to 30 and never modifies production config/state.
 """
 import argparse
 import json
-import re
 from pathlib import Path
-import requests
 
-EXCHANGE_URL="https://fapi.binance.com/fapi/v1/exchangeInfo"
-TICKER_URL="https://fapi.binance.com/fapi/v1/ticker/24hr"
+DEFAULT_FIXED=[
+    "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT",
+    "ADAUSDT","DOGEUSDT","AVAXUSDT","LTCUSDT","LINKUSDT"
+]
+TARGET_TOTAL=30
 
-def select_current_symbols(session=None, limit=35):
-    if type(limit) is not int or not 1 <= limit <= 200:
-        raise ValueError("limit must be 1..200")
-    s=session or requests.Session()
-    info=s.get(EXCHANGE_URL,timeout=25)
-    info.raise_for_status()
-    tickers=s.get(TICKER_URL,timeout=25)
-    tickers.raise_for_status()
-    eligible={
-        item["symbol"] for item in info.json()["symbols"]
-        if item.get("status")=="TRADING"
-        and item.get("contractType")=="PERPETUAL"
-        and item.get("quoteAsset")=="USDT"
-        and re.fullmatch(r"[A-Z0-9]{4,30}",item.get("symbol",""))
-    }
-    ranked=[]
-    for ticker in tickers.json():
-        symbol=ticker.get("symbol")
-        if symbol not in eligible: continue
-        try: volume=float(ticker["quoteVolume"])
-        except (ValueError,TypeError,KeyError): continue
-        if not 0 <= volume < float("inf"): continue
-        ranked.append((symbol,volume))
-    ranked.sort(key=lambda p:(-p[1],p[0]))
-    if not ranked: raise ValueError("no eligible current futures tickers")
-    return [symbol for symbol,_ in ranked[:limit]]
+def from_official_state(config, state, total=TARGET_TOTAL):
+    if type(total) is not int or total != 30:
+        raise ValueError("research contract requires exactly 30 slots")
+    if not isinstance(config,dict) or not isinstance(state,dict):
+        raise ValueError("official config and symbol state are required")
+    fixed=config.get("FIXED_SYMBOLS") or DEFAULT_FIXED
+    if not isinstance(fixed,list) or not fixed:
+        raise ValueError("invalid official fixed symbols")
+    active=config.get("SYMBOLS")
+    if not isinstance(active,dict):
+        raise ValueError("official config SYMBOLS unavailable")
+    meta=state.get("_meta")
+    if not isinstance(meta,dict) or not isinstance(meta.get("final_dynamic"),list):
+        raise ValueError("production rotation state unavailable; cannot substitute rankings")
+    enabled={s for s,value in active.items() if value is True}
+    output=[]
+    for symbol in list(fixed)+meta["final_dynamic"]:
+        if symbol not in enabled or symbol in output:continue
+        if not isinstance(symbol,str) or not symbol.endswith("USDT"):continue
+        output.append(symbol)
+        if len(output)==total:break
+    if len(output)<total:
+        raise ValueError("fewer than 30 eligible production-selected symbols; no invented fill")
+    return output
 
 def write_selection(path, symbols):
     target=Path(path)
     target.parent.mkdir(parents=True,exist_ok=True)
-    if target.exists(): raise FileExistsError("refusing to overwrite reviewed universe snapshot")
-    payload={"type":"CURRENT_DISCOVERY_ONLY","promotion_allowed":False,
-             "historical_validation_universe":False,"symbols":symbols}
-    target.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    if target.exists():
+        raise FileExistsError("refusing to overwrite historic selection snapshot")
+    target.write_text(json.dumps({
+        "origin":"production symbol.py state/config (read-only)",
+        "target_total":TARGET_TOTAL,
+        "symbols":symbols,
+        "historical_point_in_time_proven":False,
+        "promotion_allowed":False
+    },ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     return target
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
-    p.add_argument("--limit",type=int,default=35,help="Maximum candidates, not fixed membership")
+    p.add_argument("--production-config",type=Path,required=True)
+    p.add_argument("--production-symbol-state",type=Path,required=True)
     p.add_argument("--output",type=Path,required=True)
     a=p.parse_args()
-    result=select_current_symbols(limit=a.limit)
-    print("Dynamic current symbols:",", ".join(result))
-    print("Saved:",write_selection(a.output,result))
+    cfg=json.loads(a.production_config.read_text(encoding="utf-8"))
+    st=json.loads(a.production_symbol_state.read_text(encoding="utf-8"))
+    print(write_selection(a.output,from_official_state(cfg,st)))
