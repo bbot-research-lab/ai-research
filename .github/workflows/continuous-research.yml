@@ -348,6 +348,7 @@ jobs:
             throw "Research checkpoint identity mismatch: entries=$initialCount, prior_counter=$lastTrial, ledger_max=$highestTrial"
           }
           Write-Output "ORIGINAL_V3_RESUME_VERIFIED=1; PREVIOUS_TRIAL_RECORDS=$initialCount; LAST_TRIAL=$lastTrial"
+          $cycleReceipts = [System.Collections.Generic.List[object]]::new()
           for ($cycle = 1; $cycle -le $cycles; $cycle++) {
             Write-Output "ORIGINAL_V3_CYCLE_START=$cycle/$cycles"
             python strategy_lab/roadmap_manager.py *> $null
@@ -365,6 +366,14 @@ jobs:
             $innerAction = if ($null -ne $inner) { [string]$inner.action } else { '' }
             $trialCount = if (Test-Path $ledgerPath) { @((Get-Content -Raw -Encoding UTF8 $ledgerPath | ConvertFrom-Json).entries).Count } else { 0 }
             Write-Output "ORIGINAL_V3_CYCLE_FINISHED=$cycle; ACTION=$action; STAGE_STATUS=$innerStatus; STAGE_ACTION=$innerAction; TRIAL_RECORDS=$trialCount"
+            $cycleReceipts.Add([pscustomobject]@{
+              cycle = $cycle
+              action = $action
+              stage_status = $innerStatus
+              stage_action = $innerAction
+              trial_records = $trialCount
+              utc = [DateTime]::UtcNow.ToString('o')
+            })
             if ($trialCount -lt $initialCount) { throw "Original trial ledger shrank; stop before any further research" }
             $initialCount = $trialCount
             if ($action -in @('GOVERNANCE_BLOCK','SKIP') -or $innerAction -eq 'GOVERNANCE_BLOCK') { throw "Original V3 governance or lock block: $action / $innerAction" }
@@ -374,6 +383,9 @@ jobs:
               break
             }
           }
+          $receiptPath = Join-Path $env:BBOT_LOCAL_ROOT 'strategy_lab/results/v3/hosted_research_cycle_receipts.json'
+          $cycleReceipts | ConvertTo-Json -Depth 6 | Set-Content -Path $receiptPath -Encoding utf8
+          Write-Output "ORIGINAL_V3_CYCLE_RECEIPTS_SAVED=$($cycleReceipts.Count)"
       - name: Report actual original research outcome
         if: always() && env.BBOT_RESEARCH_STARTED == '1'
         shell: python
