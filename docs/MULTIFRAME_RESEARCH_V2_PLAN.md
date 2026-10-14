@@ -81,3 +81,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `checkpoint_publish_guard.py`: verifies source snapshot SHA256 and checks decrypted staged ciphertext against each source file's exact bytes in an external temporary directory. Does not write decrypted plaintext under a Git worktree.
 - Added `tests/test_checkpoint_publish_guard.py` for roundtrip and source corruption rejection.
 - **Not yet verified:** actual GitHub push, remote refetch, two consecutive workflows, live 10-minute remote checkpoints or self-dispatch. Do not claim remote durability from local unit tests. Existing `main` continuous workflow and R4 are unchanged.
+
+## Twelfth increment — Git remote roundtrip harness
+- Eleventh-increment CI passed (run 38548638915).
+- Added `frame_remote_git.py` to create a synthetic per-frame remote branch only with explicit initial-seed authorization, push encrypted frame checkpoint and independently refetch it before claiming durability.
+- Added `tests/test_frame_remote_git.py` to check a local bare-Git remote through two consecutive runs, an initial reset guard, failure/success trial retention and restoration. Tests are synthetic and do not run real trading strategies.
+- This is NOT yet an authenticated GitHub-hosted remote experiment, nor a 10-minute remote checkpoint, 5h30 automatic chain or integration into unchanged official V3. The manual workflow on feature branch has not been dispatched; the original production research schedule stays unchanged.
