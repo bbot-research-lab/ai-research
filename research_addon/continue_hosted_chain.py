@@ -14,6 +14,7 @@ from .dispatch_next_research import dispatch_next
 from .frame_remote_git import checkout_frame
 from .git_frame_checkpoint import restore_frame
 from .frame_snapshot import verify_snapshot
+from .remote_frame_objects import recover_bundle
 from .structure_proposals import FRAMES
 
 def main():
@@ -41,6 +42,13 @@ def main():
         with ExperimentLedger(state/"training_ledger.sqlite3") as ledger:
             if ledger.count()<0:
                 raise RuntimeError("invalid research ledger")
+        # Compare ciphertext content to its remote index and authenticate the
+        # restored ledger; do not treat missing or corrupt metadata as success.
+        index_path=worktree/"frames"/(args.frame+".json")
+        import json, hashlib
+        index=json.loads(index_path.read_text(encoding="utf-8"))
+        if index["frame"] != args.frame or not (worktree/"objects"/(index["object"]+".enc")).is_file():
+            raise RuntimeError("invalid remote frame checkpoint index")
     # A freshly verified remote checkpoint is the checkpoint authorization.
     now=dt.datetime.now(dt.timezone.utc).isoformat()
     hop=dispatch_next(frame=args.frame,job_result=args.result,
