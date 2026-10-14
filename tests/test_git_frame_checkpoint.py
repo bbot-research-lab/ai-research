@@ -25,6 +25,14 @@ class GitFrameCheckpointTests(unittest.TestCase):
             self.assertTrue(restore_frame("6h", KEY, p / "git", p / "copy"))
             with ExperimentLedger(p / "copy/training_ledger.sqlite3") as db:
                 self.assertEqual(db.get("candidate")["status"], "FAILED")
+            # Existing encrypted snapshot lacks progress; new state adds it.
+            from research_addon.frame_progress import save_progress
+            save_progress(p / "live/training_progress.json",
+                          frame="6h", cursor="after-first-run", completed=1)
+            snapshot(p / "live", p / "snapshot")
+            updated = stage_frame("6h", p / "snapshot", KEY, p / "git")
+            self.assertNotEqual(updated["object"], index["object"])
+            self.assertEqual(len(list((p / "git/objects").glob("*.enc"))), 2)
             with self.assertRaises(ValueError):
                 restore_frame("6h", base64.b64encode(b"z" * 32).decode(),
                               p / "git", p / "wrongkey")
