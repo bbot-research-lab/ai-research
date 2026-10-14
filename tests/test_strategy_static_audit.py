@@ -12,6 +12,11 @@ class AuditTests(unittest.TestCase):
         flags=inspect_ast(ast.parse(s))
         self.assertIn("DYNAMIC_EXECUTION:exec",flags)
         self.assertTrue(any("EMBEDDED_NETWORK_OR_PROCESS_IMPORT:subprocess" == x for x in flags))
+    def test_short_embedded_import_is_not_skipped(self):
+        source = "_SRC = 'import subprocess'\nexec(_SRC)"
+        flags = inspect_ast(ast.parse(source))
+        self.assertIn("EMBEDDED_NETWORK_OR_PROCESS_IMPORT:subprocess", flags)
+
     def test_safe_source_does_not_get_auto_published(self):
         with tempfile.TemporaryDirectory() as td:
             target=Path(td)/"test.zip"
