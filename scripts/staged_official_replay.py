@@ -121,10 +121,15 @@ def main():
             if (symbol,tf) in downloaded:
                 raise RuntimeError("historical downloader did not resolve "+symbol+" "+tf)
             downloaded.add((symbol,tf))
-            from scripts.download_historical_candles import download
+            from download_historical_candles import download
             from datetime import datetime,timezone
-            start=datetime(2020,1,1,tzinfo=timezone.utc)
-            end=datetime(2026,8,21,tzinfo=timezone.utc)
+            import pandas as pd
+            from datetime import timedelta
+            cache_timestamps=pd.read_parquet(root/'gate_lab_exact_long_cache.parquet',columns=['symbol','ts'])
+            symbol_ts=cache_timestamps.loc[cache_timestamps['symbol']==symbol,'ts']
+            if symbol_ts.empty: raise ValueError('symbol absent from pinned official cache: '+symbol)
+            start=datetime.fromtimestamp(int(symbol_ts.min()),tz=timezone.utc).replace(day=1,hour=0,minute=0,second=0,microsecond=0)
+            end=datetime.fromtimestamp(int(symbol_ts.max()),tz=timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=1)
             print("DOWNLOADING AUTHENTIC HISTORICAL CANDLES:",symbol,tf,flush=True)
             report=download(symbol,tf,start,end,args.candle_store)
             source=Path(report["path"])
