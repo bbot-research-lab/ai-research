@@ -62,7 +62,7 @@ jobs:
           python -m research_addon.frame_checkpoint_cli restore --frame "$FRAME" --root "$RUNNER_TEMP/training" --worktree "$RUNNER_TEMP/frame-state"
       - name: Synthetic training (never runs original V3 engine)
         run: |
-          python -m research_addon.training_orchestrator --frame "$FRAME" --root "$RUNNER_TEMP/training" --dry-synthetic
+          python -m research_addon.bounded_research_continuation --frame "$FRAME" --root "$RUNNER_TEMP/training" --batches 2
       - name: Encrypt and stage verified frame state
         env:
           BBOT_RESEARCH_STATE_KEY: ${{ secrets.BBOT_RESEARCH_STATE_KEY }}
