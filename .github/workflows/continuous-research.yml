@@ -1,4 +1,5 @@
 # 파일명: .github/workflows/continuous-research.yml
+# 데이터 준비: 월별 공백은 검증된 거래소 일별 원본으로만 복구한다.
 name: Continuous original strategy research
 on:
   workflow_dispatch:

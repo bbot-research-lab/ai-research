@@ -85,6 +85,54 @@ class DownloadTests(unittest.TestCase):
             verify_frame(data.drop(index=1),"30m",a,b)
         self.assertIn("/30m/",url("BTCUSDT","30m",a))
 
+    def test_monthly_gap_recovers_only_from_checksum_verified_daily_archive(self):
+        import pandas as pd
+        def archive(times):
+            buff=io.BytesIO()
+            content="\n".join(f"{t},1,2,0.5,1.5,10" for t in times)
+            with zipfile.ZipFile(buff,"w") as z:z.writestr("AAVEUSDT-12h.csv",content)
+            return buff.getvalue()
+        first=1609459200000;second=first+43200000
+        monthly=archive([first]);daily=archive([first,second])
+        class DailySession:
+            def get(self,source_url,timeout=90):
+                return FakeSession(daily if "/daily/" in source_url else monthly).get(source_url,timeout)
+        start=datetime(2021,1,1,tzinfo=timezone.utc)
+        end=datetime(2021,1,2,tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            out=download("AAVEUSDT","12h",start,end,tmp,session=DailySession())
+            self.assertEqual(pd.read_parquet(out['path']).open_time.tolist(),[first//1000,second//1000])
+        # A verified daily file with the same gap must still fail; never invent a candle.
+        daily=monthly
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError,"incomplete"):
+                download("AAVEUSDT","12h",start,end,tmp,session=DailySession())
+            self.assertFalse((Path(tmp)/"data/candles/AAVEUSDT/12h.parquet").exists())
+
+    def test_daily_recovery_wrong_day_and_corrupt_checksum_are_rejected(self):
+        def archive(times):
+            buff=io.BytesIO()
+            with zipfile.ZipFile(buff,"w") as z:
+                z.writestr("AAVEUSDT-12h.csv","\n".join(f"{t},1,2,0.5,1.5,10" for t in times))
+            return buff.getvalue()
+        monthly=archive([1609459200000])
+        daily=archive([1609545600000,1609588800000])
+        corrupt=False
+        class DailySession:
+            def get(self,source_url,timeout=90):
+                response=FakeSession(daily if "/daily/" in source_url else monthly).get(source_url,timeout)
+                if corrupt and "/daily/" in source_url and source_url.endswith('.CHECKSUM'):
+                    response.text='0'*64
+                return response
+        start=datetime(2021,1,1,tzinfo=timezone.utc);end=datetime(2021,1,2,tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError,"wrong UTC day"):
+                download("AAVEUSDT","12h",start,end,tmp,session=DailySession())
+        corrupt=True
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError,"checksum"):
+                download("AAVEUSDT","12h",start,end,tmp,session=DailySession())
+
     def test_weekly_boundaries_use_monday(self):
         a=datetime(2021,1,4,tzinfo=timezone.utc)
         b=datetime(2021,1,18,tzinfo=timezone.utc)

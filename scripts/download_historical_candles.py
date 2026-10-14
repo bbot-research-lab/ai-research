@@ -1,3 +1,4 @@
+# 파일명: scripts/download_historical_candles.py
 """Download authentic Binance USD-M futures candles into original B-BOT Parquet paths.
 No private API, credentials, synthetic fill, production trading or deployment.
 Requires pandas, pyarrow and requests. Fails if any requested day is unavailable.
@@ -169,6 +170,35 @@ def download(symbol,tf,start,end,root,session=None):
     if df.open_time.duplicated().any():
         raise ValueError("duplicate archived timestamps")
     df=df[(df.open_time>=int(start.timestamp()))&(df.open_time<int(end.timestamp()))].copy()
+    # 월별 원본에 공백·잘못된 시간축이 있으면 같은 거래소의 검증된 일별 원본으로만 복구.
+    # 빈 봉 생성·가격 보간·다른 종목 대체는 허용하지 않는다.
+    if tf in STEP and tf != "1w":
+        first,last=expected_bounds(tf,start,end)
+        expected=set(range(first,last+1,STEP[tf]))
+        observed=set(df.open_time.astype("int64").tolist())
+        suspect=(expected-observed)|(observed-expected)
+        days=sorted({datetime.fromtimestamp(stamp,timezone.utc).date() for stamp in suspect})
+        if len(days)>31:
+            raise ValueError("monthly archive has more than 31 inconsistent days; refusing speculative recovery")
+        for day in days:
+            stamp=datetime(day.year,day.month,day.day,tzinfo=timezone.utc)
+            daily=fetch(s,url(symbol,INTERVAL[tf],stamp,monthly=False))
+            if daily is None or daily.empty:
+                raise ValueError("missing authentic daily recovery archive: "+day.isoformat())
+            daily=daily.copy()
+            times=pd.to_numeric(daily["open_time"],errors="raise")
+            if times.abs().median()>10**14:times=times//1000
+            daily["open_time"]=(times//1000).astype("int64")
+            low,high=int(stamp.timestamp()),int((stamp+timedelta(days=1)).timestamp())
+            if not daily.open_time.between(low,high-1).all():
+                raise ValueError("daily recovery archive contains wrong UTC day")
+            verify_frame(daily,tf,stamp,stamp+timedelta(days=1))
+            df=df[~df.open_time.between(low,high-1)]
+            df=pd.concat([df,daily],ignore_index=True)
+            print("DAILY_RECOVERY",symbol,tf,day.isoformat(),flush=True)
+        if days:
+            df=df[(df.open_time>=int(start.timestamp()))&(df.open_time<int(end.timestamp()))]
+            df=df.sort_values("open_time").reset_index(drop=True)
     verify_frame(df,tf,start,end)
     target=Path(root)/"data"/"candles"/symbol/("1M" if tf=="1M" else tf)
     target=target.with_suffix(".parquet")
