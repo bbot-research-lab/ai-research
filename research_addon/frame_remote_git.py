@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .structure_proposals import FRAMES
 from .git_frame_checkpoint import restore_frame
+from .frame_snapshot import snapshot, verify_snapshot
 from .frame_git_sync import stage_and_commit
 
 
@@ -56,15 +57,23 @@ def commit_and_push(frame, root, worktree, key, *, allow_initial_seed=False):
     _git("config", "user.email",
          "41898282+github-actions[bot]@users.noreply.github.com", cwd=worktree)
     index = stage_and_commit(frame, root, worktree, key)
+    expected = verify_snapshot(Path(root) / "_checkpoint_snapshots" / frame)
     _git("push", "origin", "HEAD:refs/heads/" + branch, cwd=worktree)
     # Refetch and verify saved remote state in a separate worktree.
     from tempfile import TemporaryDirectory
     with TemporaryDirectory() as tmp:
         other = Path(tmp) / "remote-checkout"
-        if not checkout_frame("origin" if False else _remote_url(worktree), frame, other):
+        if not checkout_frame(_remote_url(worktree), frame, other):
             raise RuntimeError("remote frame checkpoint missing after push")
-        if not restore_frame(frame, key, other, Path(tmp) / "restored"):
+        restored_dir = Path(tmp) / "restored"
+        if not restore_frame(frame, key, other, restored_dir):
             raise RuntimeError("remote state could not be restored")
+        # Prove that the committed *remote* bytes match the local snapshot.
+        import hashlib
+        for filename, record in expected["files"].items():
+            raw = (restored_dir / filename).read_bytes()
+            if len(raw) != record["size"] or hashlib.sha256(raw).hexdigest() != record["sha256"]:
+                raise RuntimeError("remote checkpoint differs from local durable state")
     return index
 
 
