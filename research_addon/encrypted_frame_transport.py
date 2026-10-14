@@ -53,7 +53,7 @@ def unseal(frame, ciphertext, encoded_key, target):
     except Exception as exc:
         raise ValueError("snapshot authentication failed") from exc
     with zipfile.ZipFile(io.BytesIO(plaintext)) as archive:
-        allowed = {"training_ledger.sqlite3", "training_progress.json", "manifest.json"}
+        allowed = {"training_ledger.sqlite3", "training_progress.json", "continuation_hop.json", "manifest.json"}
         names = archive.namelist()
         if not names or len(names) != len(set(names)) or set(names) - allowed:
             raise ValueError("unrecognized snapshot archive")
