@@ -47,3 +47,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added `encrypted_frame_transport.py`: AES-256-GCM frame-bound encryption of a SQLite-consistent frame snapshot; rejects wrong frame, incorrect key, corruption, unexpected files, and excessively expanded archives. Unit test covers roundtrip and rejection paths.
 - Real ciphertext upload, authenticated index branch publishing, collision-proof per-frame concurrency, restore-before-run, and automatic 5h30 chained execution are **not wired**. Do not publish plaintext snapshots or use short-lived GitHub artifacts as permanent archives.
 - Production 15-minute original research workflow and R4 remain unchanged. This module is not an official V3 strategy approval or a live scheduler.
+
+## Sixth increment — content-addressed frame state objects
+- Added `remote_frame_objects.py` for per-frame AES-GCM checkpoint object identity, local immutable object publication, index-based authenticated restore, and corruption rejection; tested with synthetic SQLite records.
+- This **does not** yet upload data to GitHub, commit remote indexes, ensure central concurrency isolation, chain jobs, or provide long-term remote state. The object path is intentionally transport-independent; plaintext real V3 results must never enter the public branch.
+- Only deploy after testing independent per-frame remote branch/lock semantics, authentication, secret management, crash consistency, quotas, and recovery under actual GitHub Actions.
