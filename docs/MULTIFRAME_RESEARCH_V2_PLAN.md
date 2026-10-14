@@ -240,3 +240,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - GitHub Actions run 38554513573 completed SUCCESS for a second distinct 6h synthetic workflow run, authenticated restored hop=1, advanced to hop=2 and verified three encrypted remote checkpoint pushes. Log emitted `{'frame': '6h', 'hop': 2, 'advanced': True}` and three `REMOTE_CHECKPOINT_VERIFIED=6h` lines.
 - Added scoped one-time `.github/workflows/one-time-6h-hop2-smoke.yml` to trigger this exact second-step test. This is a manually authored workflow trigger, **not** end-to-end automatic inter-job dispatch; do not claim 24/7 research is active.
 - Official V3 adapter, post-completion default-branch listener and production deployment remain unimplemented. Original operating research and EC2 R4 untouched.
+
+## Forty-third increment — local fail-closed handoff claim primitive
+- 42nd increment Research CI succeeded: run 38554810732.
+- Added `handoff_claim.py` using exclusive file creation to reject duplicate claims for the same `(run_id, frame, hop)` within one shared filesystem, plus tests for duplicate/corrupt/invalid claims.
+- **This does NOT protect across separate hosted GitHub Actions runners** because their local filesystems are isolated. A durable atomic remote claim or single-writer service and dispatch reconciliation are still required before enabling automatic chaining; claiming dispatch success on this basis would be incorrect.
+- No automatic workflow dispatch, original main research modification, official V3 execution, or production R4 change.
