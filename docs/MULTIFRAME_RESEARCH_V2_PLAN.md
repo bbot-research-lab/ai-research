@@ -230,3 +230,8 @@ Only merge after test review. No branch here alters the currently running `conti
 - Added scoped push-triggered `.github/workflows/one-time-6h-receipt-migration.yml`, pinned to the exact previously audited original synthetic 6h remote Git SHA `14077beabdf40f189b8fa6080053971223723305`.
 - **Actual GitHub Actions run 38553583268 completed successfully**. Migration returned `{'migrated': True, 'hop': 0, 'retained_records': 31}` after checksum equality and remote refetch/recovery checks. `synthetic-frame-state-6h` Git HEAD became `8f54a0abad7ad60a8cb27dffd556442ae16edb20`. Other five frame-state branches remain legacy, unchanged by this migration.
 - One-time scoped workflow will not run again unless its own file is changed. No live V3 research or automatic inter-job chaining activated; production R4 and original main workflow untouched.
+
+## Thirty-eighth increment — all six actual GitHub synthetic frame checkpoints migrated
+- Added scoped one-time feature-branch workflow `.github/workflows/one-time-five-receipt-migration.yml` with exact audited SHA preconditions for remaining frame branches: 30m, 1h, 12h, 1d, 1w.
+- GitHub Actions run 38553783322 completed SUCCESS and emitted 5 times `{'migrated': True, 'hop': 0, 'retained_records': 31}`. Along with 6h migration run 38553583268, all six original 31-record synthetic frame ledgers (186 frame-specific results) were authenticated, migrated and remotely reverified. No real market research is implied.
+- Next work: safely wire completed-run watcher to default-branch workflow with opt-in and correct hop progression, and separately connect official V3 simulation/data under fail-closed rules. Neither auto-chaining nor live R4 changed.
