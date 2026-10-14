@@ -1,0 +1,21 @@
+name: Research source audit (no execution)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check repository boundaries
+        run: python3 scripts/preflight.py
+      - name: Check whether research source is staged
+        shell: bash
+        run: |
+          if [ -d strategy_lab ]; then
+            python3 scripts/research_dependency_audit.py .
+          else
+            echo "Research engine not yet uploaded. Live trading and scheduled research remain disabled."
+          fi
