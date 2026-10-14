@@ -82,6 +82,14 @@ class OriginalFlowTests(unittest.TestCase):
         self.assertIn('error',entries['sealed']['coarse_results'])
         self.assertEqual(rows[0]['pipeline_stage'],'INDIVIDUAL_TRAILING_OPTIMIZATION_PENDING')
 
+    def test_redeveloped_trailing_requires_actual_measurement_before_reentry(self):
+        sr=self.research
+        target={'eligible':True,'timeframe':'1H','pipeline_stage':'INDIVIDUAL_TRAILING_OPTIMIZATION_PENDING','redevelopment_trailing_override':{'start_pct':3,'callback_pct':1.5}}
+        with patch.object(sr,'load',side_effect=lambda path,default=None:{'entries':[target]} if path==sr.HISTORICAL_STAGE2 else {'entries':{}}), patch.object(sr,'_ensure_stage3_entry',return_value={'coarse_results':{}}), patch.object(sr,'_run_trailing_pair',return_value={'status':'MEASURED'}) as run:
+            self.assertEqual(sr.run_individual_trailing_one()['status'],'MEASURED')
+            run.assert_called_once()
+        self.assertEqual(target['pipeline_stage'],'INDIVIDUAL_TRAILING_OPTIMIZATION_PENDING')
+
     def test_trailing_selects_own_frame_without_mutating_other_frame(self):
         sr=self.research
         rows=[{'eligible':True,'timeframe':tf,'pipeline_stage':'INDIVIDUAL_TRAILING_OPTIMIZATION_PENDING'} for tf in ['6H','1H']]
