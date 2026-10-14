@@ -224,3 +224,9 @@ Only merge after test review. No branch here alters the currently running `conti
 - Thirty-fifth-increment Research CI succeeded, run 38553192017.
 - Strengthened `migrate_remote_synthetic.py`: records SHA-256 of the original restored experiment-ledger SQLite file, checks that local migration does not change those bytes before publication, and compares SHA-256 of the independently restored GitHub checkpoint with the original. Count-only validation remains in addition; a change with equal record counts can no longer silently pass.
 - Added an end-to-end original-versus-migrated SQLite checksum assertion to the bare-Git remote test. The new code is committed on feature branch, not deployed to main or remote synthetic state branches. Official V3 24/7 research not yet active.
+
+## Thirty-seventh increment — first real hosted encrypted legacy migration
+- 36th-increment Research CI passed (38553377501).
+- Added scoped push-triggered `.github/workflows/one-time-6h-receipt-migration.yml`, pinned to the exact previously audited original synthetic 6h remote Git SHA `14077beabdf40f189b8fa6080053971223723305`.
+- **Actual GitHub Actions run 38553583268 completed successfully**. Migration returned `{'migrated': True, 'hop': 0, 'retained_records': 31}` after checksum equality and remote refetch/recovery checks. `synthetic-frame-state-6h` Git HEAD became `8f54a0abad7ad60a8cb27dffd556442ae16edb20`. Other five frame-state branches remain legacy, unchanged by this migration.
+- One-time scoped workflow will not run again unless its own file is changed. No live V3 research or automatic inter-job chaining activated; production R4 and original main workflow untouched.
