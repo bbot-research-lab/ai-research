@@ -4,7 +4,6 @@ Called by the job owner at a safe checkpoint boundary. This never runs orders,
 changes official V3 results, or removes previous encrypted objects.
 """
 from __future__ import annotations
-import os
 from pathlib import Path
 import subprocess
 
@@ -37,24 +36,3 @@ def stage_and_commit(frame, root, worktree, key):
     return index
 
 
-def push_prepared_worktree(worktree, frame, *, remote="origin", token=None):
-    """Push only to the isolated frame branch. Caller must enforce single writer.
-
-    Refuses to run with an unspecified, absent, or malformed token. No token is
-    placed in argv, logs, config, commit content, or the public source tree.
-    """
-    if frame not in FRAMES:
-        raise ValueError("unsupported frame")
-    if not token:
-        raise ValueError("authenticated push token required")
-    import base64
-    from urllib.parse import quote
-    # GitHub Actions masks env token; ephemeral askpass keeps it out of arguments.
-    # The caller supplies a credential helper through its environment.
-    if not os.environ.get("GIT_ASKPASS"):
-        raise ValueError("secure git askpass required")
-    branch = "synthetic-frame-state-" + frame
-    subprocess.run(["git", "-C", str(worktree), "push", remote,
-                    "HEAD:refs/heads/" + branch], check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                   env=dict(os.environ, BBOT_GIT_PUSH_TOKEN=token))
